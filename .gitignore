@@ -22,6 +22,7 @@ __pycache__
 *.pyc
 *.egg-info
 dist
+.venv
 
 # Log
 *.log
