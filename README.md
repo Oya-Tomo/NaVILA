@@ -21,6 +21,7 @@
 > [!IMPORTANT]
 > This repository is forked from [NaVILA](https://github.com/AnjieCheng/NaVILA).
 > See the original repository !!
+> This repository contains the pyproject.toml and .gitignore files, which are made to **support package management with uv**.
 
 ## 💡 Introduction
 
