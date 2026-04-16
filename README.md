@@ -18,6 +18,10 @@
 
 </div>
 
+> [!IMPORTANT]
+> This repository is forked from [NaVILA](https://github.com/AnjieCheng/NaVILA).
+> See the original repository !!
+
 ## 💡 Introduction
 
 NaVILA is a two-level framework that combines VLAs with locomotion skills for navigation. It generates high-level language-based commands, while a real-time locomotion policy ensures obstacle avoidance.
