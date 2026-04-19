@@ -568,6 +568,50 @@
             background: var(--border);
             border-radius: 3px;
         }
+
+        /* ── Mobile Responsive ── */
+        @media (max-width: 850px) {
+            main {
+                display: flex;
+                flex-direction: column;
+                max-height: none;
+            }
+            
+            .left-panel {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                overflow-y: visible;
+            }
+            
+            .right-panel {
+                overflow-y: visible;
+                min-height: 400px;
+            }
+            
+            header {
+                padding: 14px 20px;
+            }
+            
+            header h1 {
+                font-size: 1rem;
+            }
+            
+            header p {
+                font-size: 0.7rem;
+            }
+
+            .status-pill {
+                padding: 4px 8px;
+            }
+            
+            section {
+                padding: 16px 20px;
+            }
+            
+            .result-body {
+                padding: 16px 20px;
+            }
+        }
     </style>
 </head>
 
@@ -851,10 +895,19 @@
                 if (jsonMatch) {
                     try { parsed = JSON.parse(jsonMatch[1]); } catch { }
                 }
+                let badgeText = 'RESULT';
+                let badgeStyle = '';
+                if (parsed && parsed.action) {
+                    badgeText = esc(parsed.action.split(' ')[0].toUpperCase());
+                } else if (!parsed) {
+                    badgeText = 'STRUCTURE ERROR';
+                    badgeStyle = 'color: var(--danger); border-color: var(--danger)44; background: var(--danger)18;';
+                }
+
                 let html = `<div class="action-card">
     <div class="action-card-header">
       Navigation Decision
-      <span class="action-badge">${parsed?.action ? esc(parsed.action.split(' ')[0].toUpperCase()) : 'RESULT'}</span>
+      <span class="action-badge" style="${badgeStyle}">${badgeText}</span>
     </div>`;
                 if (parsed) {
                     if (parsed.description) html += field('Scene Description', esc(parsed.description));
@@ -865,7 +918,7 @@
     </div>`;
                 } else {
                     html += `<div class="action-field">
-      <div class="action-field-label">Raw Response</div>
+      <div class="action-field-label" style="color: var(--danger);">Failed to Parse JSON</div>
       <div class="action-field-value" style="white-space:pre-wrap;">${esc(raw)}</div>
     </div>`;
                 }
