@@ -601,6 +601,10 @@
                     <button id="btn-start-cam">▶ Start Camera</button>
                     <button id="btn-capture" class="primary" disabled>📸 Capture</button>
                 </div>
+                <div class="btn-row" style="margin-top:8px;">
+                    <input type="file" id="file-upload" accept="image/*" style="display: none;" />
+                    <button id="btn-upload" style="font-size: 0.75rem;">📁 Upload Image (Fallback)</button>
+                </div>
             </section>
             <!-- Frame history -->
             <section>
@@ -650,6 +654,8 @@
             const btnCapture = document.getElementById('btn-capture');
             const btnReset = document.getElementById('btn-reset');
             const btnInfer = document.getElementById('btn-infer');
+            const fileUpload = document.getElementById('file-upload');
+            const btnUpload = document.getElementById('btn-upload');
             const frameStrip = document.getElementById('frame-strip');
             const frameCount = document.getElementById('frame-count');
             const instruction = document.getElementById('instruction');
@@ -729,6 +735,35 @@
                 } finally {
                     btnCapture.disabled = false;
                 }
+            });
+            // ── Upload Fallback ───────────────────────────────────────────────────────
+            btnUpload.addEventListener('click', () => {
+                fileUpload.click();
+            });
+            fileUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const dataUrl = event.target.result;
+                    try {
+                        const r = await fetch('/api/capture', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image: dataUrl }),
+                        });
+                        const d = await r.json();
+                        if (!r.ok) { showToast(d.error || 'Upload failed', 'error'); return; }
+                        updateFrameCount(d.frame_count);
+                        addThumb(dataUrl, d.frame_count);
+                        showToast(`Frame ${d.frame_count} uploaded`, 'success', 1500);
+                        btnInfer.disabled = false;
+                    } catch (err) {
+                        showToast('Network error: ' + err.message, 'error');
+                    }
+                };
+                reader.readAsDataURL(file);
+                fileUpload.value = ''; // Reset input
             });
             // ── Reset ─────────────────────────────────────────────────────────────────
             btnReset.addEventListener('click', async () => {
