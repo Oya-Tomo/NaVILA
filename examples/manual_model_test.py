@@ -77,18 +77,18 @@ current observation:
 
 ## Format rules
 
-- Output a JSON object that follows the template. Other type of output is forbidden.
+- Output only the action and nothing else.
+- Follow the template strictly.
 - Choose one action at a time.
   - forward d cm
   - backward d cm
-  - left d deg
-  - right d deg
+  - left d degrees
+  - right d degrees
   - stop
 
 ## Template
-{{
-  "action": "<action>"
-}}
+
+The next action is <action>
 """
 
 
