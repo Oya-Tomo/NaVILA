@@ -23,14 +23,14 @@ tokenizer, model, image_processor, context_len = load_pretrained_model(
 )
 
 image_frame_paths = [
-    "images/scene1/frame1.jpg",
-    "images/scene1/frame2.jpg",
-    "images/scene1/frame3.jpg",
-    "images/scene1/frame4.jpg",
-    "images/scene1/frame5.jpg",
-    "images/scene1/frame6.jpg",
-    "images/scene1/frame7.jpg",
-    "images/scene1/frame8.jpg",
+    "examples/images/scene1/frame1.jpg",
+    "examples/images/scene1/frame2.jpg",
+    "examples/images/scene1/frame3.jpg",
+    "examples/images/scene1/frame4.jpg",
+    "examples/images/scene1/frame5.jpg",
+    "examples/images/scene1/frame6.jpg",
+    "examples/images/scene1/frame7.jpg",
+    "examples/images/scene1/frame8.jpg",
 ]
 
 # ナビゲーション命令
