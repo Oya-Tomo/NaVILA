@@ -39,17 +39,14 @@ image_frame_paths = [
     "examples/images/scene1/frame8.jpg",
 ]
 
-# ナビゲーション命令
 instruction = "Go to the elevator and use it."
 
-# 画像前処理
 image_tensor = process_images(image_frame_paths, image_processor, model.config)
 if isinstance(image_tensor, list):
     image_tensor = [img.to(dtype=torch.float16, device='cuda') for img in image_tensor]
 else:
     image_tensor = [image_tensor.to(dtype=torch.float16, device='cuda')]
 
-# プロンプト構築
 conv = conv_templates["llama_3"].copy()
 
 NAV_PROMPT = f"""You are a navigation robot.
