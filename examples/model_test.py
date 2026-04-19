@@ -29,14 +29,14 @@ tokenizer, model, image_processor, context_len = load_pretrained_model(
 )
 
 image_frame_paths = [
-    "examples/images/scene1/frame1.jpg",
+    "examples/images/scene1/frame1.jpg", # older frame
     "examples/images/scene1/frame2.jpg",
     "examples/images/scene1/frame3.jpg",
     "examples/images/scene1/frame4.jpg",
     "examples/images/scene1/frame5.jpg",
     "examples/images/scene1/frame6.jpg",
     "examples/images/scene1/frame7.jpg",
-    "examples/images/scene1/frame8.jpg",
+    "examples/images/scene1/frame8.jpg", # newer frame
 ]
 
 instruction = "Go to the elevator and use it."
@@ -49,7 +49,17 @@ else:
 
 conv = conv_templates["llama_3"].copy()
 
-NAV_PROMPT = f"""You are a navigation robot.
+hist_image_tokens = "\n".join([f"{DEFAULT_IMAGE_TOKEN}" for _ in range(len(image_frame_paths) - 1)])
+
+NAVIGATION_PROMPT = f"""
+You are a navigation robot.
+
+## Environment Information
+
+a video of historical observations:
+{hist_image_tokens}
+current observation:
+{DEFAULT_IMAGE_TOKEN}
 
 ## Rules:
 - Output the description of the scene.
