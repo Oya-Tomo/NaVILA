@@ -71,7 +71,7 @@ a video of historical observations:
 {hist_image_tokens}
 
 current observation:
-{DEFAULT_IMAGE_TOKEN}
+{curr_image_token}
 
 ## Format
 ```json
@@ -96,7 +96,7 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
 
     prompt_text = NAV_PROMPT_TEMPLATE.format(
         hist_image_tokens=hist_image_tokens,
-        DEFAULT_IMAGE_TOKEN=DEFAULT_IMAGE_TOKEN,
+        curr_image_token=DEFAULT_IMAGE_TOKEN,
         instruction=instruction
     )
 
