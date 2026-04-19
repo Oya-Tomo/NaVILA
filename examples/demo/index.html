@@ -621,7 +621,7 @@
         <div class="logo">🤖</div>
         <div>
             <h1>NaVILA Interactive Demo</h1>
-            <p>Camera → 8-frame history → Navigation inference</p>
+            <p>Camera → <span id="appbar-max-frames">8</span>-frame history → Navigation inference</p>
         </div>
         <div class="status-pill" id="status-pill">
             <span class="dot"></span>
@@ -835,6 +835,8 @@
                 frameCountVal = n;
                 frameCount.textContent = n;
                 document.getElementById('max-frames').textContent = maxFrames;
+                const appbarMaxFrames = document.getElementById('appbar-max-frames');
+                if (appbarMaxFrames) appbarMaxFrames.textContent = maxFrames;
             }
             function addThumb(dataUrl, idx) {
                 // Keep only last maxFrames thumbnails in strip

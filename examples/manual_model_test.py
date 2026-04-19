@@ -55,8 +55,7 @@ print("[INFO] Model loaded.")
 # ---------------------------------------------------------------------------
 # Frame history  (max 8 frames, FIFO)
 # ---------------------------------------------------------------------------
-MAX_FRAMES = 8
-frame_history: deque[Image.Image] = deque(maxlen=MAX_FRAMES)
+frame_history: deque[Image.Image] = deque(maxlen=args.max_frames)
 
 # ---------------------------------------------------------------------------
 # Inference helper
