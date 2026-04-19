@@ -76,9 +76,9 @@ current observation:
 ## Format
 ```json
 {
-  "description": []
-  "purpose": []
-  "action": [forward <d> cm|backward <d> cm|left <d> deg|right <d> deg|stop]
+  "description": "Write description of current scene.",
+  "purpose": "Write purpose of your next action.",
+  "action": "forward <d> cm" | "backward <d> cm" | "left <d> deg" | "right <d> deg" | "stop"
 }
 ```
 """
