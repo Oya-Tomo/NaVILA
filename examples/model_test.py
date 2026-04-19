@@ -54,6 +54,9 @@ hist_image_tokens = "\n".join([f"{DEFAULT_IMAGE_TOKEN}" for _ in range(len(image
 NAVIGATION_PROMPT = f"""
 You are a navigation robot.
 
+## Task
+{instruction}
+
 ## Environment Information
 
 a video of historical observations:
@@ -61,31 +64,15 @@ a video of historical observations:
 current observation:
 {DEFAULT_IMAGE_TOKEN}
 
-## Rules:
-- Output the description of the scene.
-- Explain purpose of your next action.
-- Output the next action.
-- description: free text
-- purpose: free text
-- action: choose one action from below.
-    - forward <d> cm: move forward by d cm
-    - backward <d> cm: move backward by d cm
-    - left <d> deg: turn left by d degrees
-    - right <d> deg: turn right by d degrees
-    - stop: stop
-- <d> is natural number.
-- don't forget to use the tags below.
+## Format rules
 
-## Format
-```
-{{
-"description": "description text",
-"purpose": "purpose text",
-"action": "action text"
-}}
-```
+- Output a TOML object that follows the template. Other type of output is forbidden.
+- <d> is an natural number.
 
-Task: {instruction}
+```toml
+description = "Description of current scene."
+action = "forward <d> cm | backward <d> cm | left <d> deg | right <d> deg | stop"
+```
 """
 
 prompt_text = NAVIGATION_PROMPT

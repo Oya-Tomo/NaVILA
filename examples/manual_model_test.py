@@ -73,14 +73,19 @@ a video of historical observations:
 current observation:
 {curr_image_token}
 
-## Format
-```json
-{
-  "description": "Write description of current scene.",
-  "purpose": "Write purpose of your next action.",
-  "action": "forward <d> cm" | "backward <d> cm" | "left <d> deg" | "right <d> deg" | "stop"
-}
+## Format rules
+
+- Output a TOML object that follows the template. Other type of output is forbidden.
+- <d> is an natural number.
+
+```toml
+{result_template}
 ```
+"""
+
+NAV_RESULT_TEMPLATE = """\
+description = "Description of current scene."
+action = "forward <d> cm | backward <d> cm | left <d> deg | right <d> deg | stop"
 """
 
 
@@ -97,7 +102,8 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
     prompt_text = NAV_PROMPT_TEMPLATE.format(
         hist_image_tokens=hist_image_tokens,
         curr_image_token=DEFAULT_IMAGE_TOKEN,
-        instruction=instruction
+        instruction=instruction,
+        result_template=NAV_RESULT_TEMPLATE,
     )
 
     conv = conv_templates["llama_3"].copy()

@@ -673,6 +673,7 @@
             </section>
         </div>
         <!-- ── Right panel ── -->
+        <script src="https://cdn.jsdelivr.net/npm/@iarna/toml@2.2.5/lib/toml.min.js"></script>
         <div class="right-panel">
             <div class="result-header">
                 <h2>Inference Result</h2>
@@ -889,12 +890,33 @@
             }
             function renderResult(raw) {
                 let parsed = null;
-                // Try to extract JSON block from the response
-                const jsonMatch = raw.match(/```[\s\S]*?(\{[\s\S]*?\})[\s\S]*?```/) ||
-                    raw.match(/(\{[\s\S]*?\})/);
-                if (jsonMatch) {
-                    try { parsed = JSON.parse(jsonMatch[1]); } catch { }
+                // Try to extract TOML block from the response
+                const tomlMatch = raw.match(/```(?:toml)?\n([\s\S]*?)\n```/i);
+                
+                let tomlString = raw;
+                if (tomlMatch) {
+                    tomlString = tomlMatch[1];
                 }
+
+                try {
+                    // Assuming @iarna/toml is available globally as `toml`
+                    if (window.toml && window.toml.parse) {
+                        parsed = window.toml.parse(tomlString);
+                    } else {
+                        // Fallback primitive regex parser if library fails to load
+                        parsed = {};
+                        const regex = /^([a-zA-Z0-9_-]+)\s*=\s*(?:"""([\s\S]*?)"""|"(.*?)"|'(.*?)')/gm;
+                        let match;
+                        while ((match = regex.exec(tomlString)) !== null) {
+                            parsed[match[1]] = match[2] || match[3] || match[4] || "";
+                        }
+                        if (Object.keys(parsed).length === 0) parsed = null;
+                    }
+                } catch (e) {
+                    console.error("TOML Parse Error:", e);
+                    parsed = null;
+                }
+
                 let badgeText = 'RESULT';
                 let badgeStyle = '';
                 if (parsed && parsed.action) {
@@ -911,14 +933,13 @@
     </div>`;
                 if (parsed) {
                     if (parsed.description) html += field('Scene Description', esc(parsed.description));
-                    if (parsed.purpose) html += field('Purpose', esc(parsed.purpose));
                     if (parsed.action) html += `<div class="action-field">
       <div class="action-field-label">Action</div>
       <span class="action-command">${esc(parsed.action)}</span>
     </div>`;
                 } else {
                     html += `<div class="action-field">
-      <div class="action-field-label" style="color: var(--danger);">Failed to Parse JSON</div>
+      <div class="action-field-label" style="color: var(--danger);">Failed to Parse TOML</div>
       <div class="action-field-value" style="white-space:pre-wrap;">${esc(raw)}</div>
     </div>`;
                 }
