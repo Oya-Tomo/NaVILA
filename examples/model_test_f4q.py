@@ -23,8 +23,8 @@ tokenizer, model, image_processor, context_len = load_pretrained_model(
 )
 
 image_frame_paths = [
-    "images/scene1/frame1.png"
-    "images/scene1/frame2.png"
+    "images/scene1/frame1.png",
+    "images/scene1/frame2.png",
     "images/scene1/frame3.png",
     "images/scene1/frame4.png",
     "images/scene1/frame5.png",
