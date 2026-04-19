@@ -713,6 +713,7 @@
             // ── State ─────────────────────────────────────────────────────────────────
             let camActive = false;
             let frameCountVal = 0;
+            let absoluteFrameCount = 0;
             let showRaw = false;
             let lastRaw = '';
             let toastTimer = null;
@@ -778,8 +779,9 @@
                     const d = await r.json();
                     if (!r.ok) { showToast(d.error || 'Capture failed', 'error'); return; }
                     updateFrameCount(d.frame_count);
-                    addThumb(dataUrl, d.frame_count);
-                    showToast(`Frame ${d.frame_count} captured`, 'success', 1500);
+                    absoluteFrameCount++;
+                    addThumb(dataUrl, absoluteFrameCount);
+                    showToast(`Frame ${absoluteFrameCount} captured`, 'success', 1500);
                     btnInfer.disabled = false;
                 } catch (e) {
                     showToast('Network error: ' + e.message, 'error');
@@ -806,8 +808,9 @@
                         const d = await r.json();
                         if (!r.ok) { showToast(d.error || 'Upload failed', 'error'); return; }
                         updateFrameCount(d.frame_count);
-                        addThumb(dataUrl, d.frame_count);
-                        showToast(`Frame ${d.frame_count} uploaded`, 'success', 1500);
+                        absoluteFrameCount++;
+                        addThumb(dataUrl, absoluteFrameCount);
+                        showToast(`Frame ${absoluteFrameCount} uploaded`, 'success', 1500);
                         btnInfer.disabled = false;
                     } catch (err) {
                         showToast('Network error: ' + err.message, 'error');
@@ -821,6 +824,7 @@
                 await fetch('/api/reset', { method: 'POST' });
                 frameStrip.innerHTML = '';
                 updateFrameCount(0);
+                absoluteFrameCount = 0;
                 btnInfer.disabled = true;
                 showToast('Frame history cleared', 'info', 1800);
             });
