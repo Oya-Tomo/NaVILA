@@ -16,6 +16,7 @@ parser.add_argument("--load_4bit", action="store_true", default=True, help="Enab
 parser.add_argument("--do_sample", action="store_true", default=False, help="Enable sampling-based decoding (default: False = greedy)")
 parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature, only used when --do_sample is set (default: 0.7)")
 parser.add_argument("--model_path", type=str, default="a8cheng/navila-llama3-8b-8f", help="Model path (default: a8cheng/navila-llama3-8b-8f)")
+parser.add_argument("--max_frames", type=int, default=8, help="Maximum number of historical frames to use (default: 8)")
 args = parser.parse_args()
 
 tokenizer, model, image_processor, context_len = load_pretrained_model(
@@ -39,6 +40,11 @@ image_frame_paths = [
     "examples/images/scene1/frame7.jpg",
     "examples/images/scene1/frame8.jpg", # newer frame
 ]
+
+if len(image_frame_paths) > args.max_frames:
+    image_frame_paths = image_frame_paths[-args.max_frames:]
+while len(image_frame_paths) < args.max_frames:
+    image_frame_paths.insert(0, image_frame_paths[0])
 
 def crop_and_resize(img: Image.Image, size=384) -> Image.Image:
     w, h = img.size

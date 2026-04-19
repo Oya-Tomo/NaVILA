@@ -653,7 +653,7 @@
             <!-- Frame history -->
             <section>
                 <h2>🎞 Frame History</h2>
-                <p class="frame-count"><span id="frame-count">0</span> / 8 frames (FIFO, 8 max)</p>
+                <p class="frame-count"><span id="frame-count">0</span> / <span id="max-frames">8</span> frames (FIFO)</p>
                 <div id="frame-strip"></div>
                 <div class="btn-row" style="margin-top:14px;">
                     <button id="btn-reset" class="danger">🗑 Clear History</button>
@@ -714,6 +714,7 @@
             let camActive = false;
             let frameCountVal = 0;
             let absoluteFrameCount = 0;
+            let maxFrames = 8;
             let showRaw = false;
             let lastRaw = '';
             let toastTimer = null;
@@ -734,7 +735,7 @@
                 try {
                     const r = await fetch('/api/status');
                     const d = await r.json();
-                    updateFrameCount(d.frame_count);
+                    updateFrameCount(d.frame_count, d.max_frames);
                     setStatus('ready', 'Server ready');
                 } catch {
                     setStatus('', 'Server unreachable');
@@ -829,13 +830,15 @@
                 showToast('Frame history cleared', 'info', 1800);
             });
             // ── Frame count display ───────────────────────────────────────────────────
-            function updateFrameCount(n) {
+            function updateFrameCount(n, mx) {
+                if (mx !== undefined) maxFrames = mx;
                 frameCountVal = n;
                 frameCount.textContent = n;
+                document.getElementById('max-frames').textContent = maxFrames;
             }
             function addThumb(dataUrl, idx) {
-                // Keep only last 8 thumbnails in strip
-                while (frameStrip.children.length >= 8) frameStrip.removeChild(frameStrip.firstChild);
+                // Keep only last maxFrames thumbnails in strip
+                while (frameStrip.children.length >= maxFrames) frameStrip.removeChild(frameStrip.firstChild);
                 const wrap = document.createElement('div');
                 wrap.className = 'thumb';
                 const img = document.createElement('img');
@@ -907,7 +910,7 @@
                 if (parsed && parsed.action) {
                     badgeText = esc(parsed.action.split(' ')[0].toUpperCase());
                 } else if (!parsed) {
-                    badgeText = 'STRUCTURE ERROR';
+                    badgeText = 'PARSE ERROR';
                     badgeStyle = 'color: var(--danger); border-color: var(--danger)44; background: var(--danger)18;';
                 }
 
@@ -923,7 +926,7 @@
     </div>`;
                 } else {
                     html += `<div class="action-field">
-      <div class="action-field-label" style="color: var(--danger);">Failed to Parse JSON</div>
+      <div class="action-field-label" style="color: var(--danger);">Failed to Parse Result</div>
       <div class="action-field-value" style="white-space:pre-wrap;">${esc(raw)}</div>
     </div>`;
                 }

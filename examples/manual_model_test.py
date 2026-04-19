@@ -32,7 +32,8 @@ parser.add_argument("--do_sample", action="store_true", default=False, help="Ena
 parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature, only used when --do_sample is set (default: 0.7)")
 parser.add_argument("--model_path", type=str, default="a8cheng/navila-llama3-8b-8f", help="HuggingFace model path")
 parser.add_argument("--port", type=int, default=5000, help="Port to run the server on (default: 5000)")
-parser.add_argument("--demo_dir", type=str, default="demo", help="Directory containing index.html (default: demo)")
+parser.add_argument("--demo_dir", type=str, default="examples/demo", help="Path to demo static files")
+parser.add_argument("--max_frames", type=int, default=8, help="Maximum number of historical frames to use (default: 8)")
 args = parser.parse_args()
 
 # ---------------------------------------------------------------------------
@@ -146,22 +147,20 @@ def crop_and_resize(img: Image.Image, size=384) -> Image.Image:
     return img.resize((size, size), Image.Resampling.BICUBIC)
 
 
-def parse_json_output(raw_text: str) -> dict | None:
-    """Extract and parse JSON block from the expected output format."""
-    match = re.search(r"```(?:json)?\n([\s\S]*?)\n```", raw_text, re.IGNORECASE)
-    json_str = match.group(1) if match else raw_text
+def parse_action_output(raw_text: str) -> dict | None:
+    """Extract action from the expected text output format."""
+    match = re.search(r"The next action is\s+(.*)", raw_text, re.IGNORECASE)
+    if match:
+        action_str = match.group(1).strip()
+        # Remove any surrounding quotes or punctuation if needed
+        action_str = action_str.strip('."\'')
+        return {"action": action_str}
+    
+    # Fallback
+    fallback_match = re.search(r"(forward|backward|left|right|stop).*?(?:[0-9]+)?", raw_text, re.IGNORECASE)
+    if fallback_match:
+        return {"action": raw_text.strip()}
 
-    try:
-        return json.loads(json_str.strip())
-    except Exception:
-        # Fallback to finding first { and last }
-        start = json_str.find("{")
-        end = json_str.rfind("}")
-        if start != -1 and end != -1:
-            try:
-                return json.loads(json_str[start:end+1])
-            except Exception:
-                pass
     return None
 
 
@@ -195,7 +194,7 @@ def capture():
     
     frame_history.append(img)
 
-    return jsonify({"frame_count": len(frame_history), "max_frames": MAX_FRAMES})
+    return jsonify({"frame_count": len(frame_history), "max_frames": args.max_frames})
 
 
 @app.route("/api/infer", methods=["POST"])
@@ -211,12 +210,12 @@ def infer():
 
     images = list(frame_history)
 
-    # Pad to MAX_FRAMES by repeating the first frame if necessary
-    while len(images) < MAX_FRAMES:
+    # Pad to args.max_frames by repeating the first frame if necessary
+    while len(images) < args.max_frames:
         images.insert(0, images[0])
 
     raw_result = run_inference(instruction, images)
-    parsed_result = parse_json_output(raw_result)
+    parsed_result = parse_action_output(raw_result)
     
     return jsonify({
         "raw": raw_result,
@@ -233,7 +232,7 @@ def reset():
 
 @app.route("/api/status", methods=["GET"])
 def status():
-    return jsonify({"frame_count": len(frame_history), "max_frames": MAX_FRAMES})
+    return jsonify({"frame_count": len(frame_history), "max_frames": args.max_frames})
 
 
 if __name__ == "__main__":
