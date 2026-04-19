@@ -93,9 +93,7 @@ with torch.inference_mode():
         images=image_tensor,
         attention_mask=attention_mask,
         pad_token_id=pad_token_id,
-        do_sample=True,
-        temperature=0.6,
-        top_p=0.9,
+        do_sample=False,
         max_new_tokens=1000,
         use_cache=True
     )
