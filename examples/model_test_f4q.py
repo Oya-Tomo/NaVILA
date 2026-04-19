@@ -66,9 +66,9 @@ NAV_PROMPT = f"""You are a navigation robot.
 ## Format
 ```
 {{
-"description": "free text",
-"purpose": "free text",
-"action": "follow the rules strictly."
+"description": "description text",
+"purpose": "purpose text",
+"action": "action text"
 }}
 ```
 
@@ -84,11 +84,18 @@ input_ids = tokenizer_image_token(
     full_prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt'
 ).unsqueeze(0).to('cuda')
 
+attention_mask = torch.ones_like(input_ids)
+pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
+
 with torch.inference_mode():
     output_ids = model.generate(
         input_ids,
         images=image_tensor,
-        do_sample=False,
+        attention_mask=attention_mask,
+        pad_token_id=pad_token_id,
+        do_sample=True,
+        temperature=0.6,
+        top_p=0.9,
         max_new_tokens=1000,
         use_cache=True
     )
