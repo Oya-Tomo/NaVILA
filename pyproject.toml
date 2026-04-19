@@ -34,7 +34,7 @@ vila-eval = "llava.cli.eval:main"
 [project.optional-dependencies]
 train = ["deepspeed==0.9.5", "ninja", "wandb"]
 eval = ["word2number", "Levenshtein", "nltk", "pywsd", "lmms-eval"]
-examples = ["flash-attn", "deepspeed==0.9.5"]
+examples = ["setuptools", "flash-attn", "deepspeed==0.9.5"]
 
 [project.urls]
 "Homepage" = "https://hanlab.mit.edu/projects/vila"
