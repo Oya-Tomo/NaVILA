@@ -47,22 +47,32 @@ else:
 conv = conv_templates["llama_3"].copy()
 
 NAV_PROMPT = f"""You are a navigation robot.
-Given the current camera image, output ONLY the next navigation action as ONE line.
 
-Allowed formats (choose exactly one):
-- move forward <d> cm
-- turn left <theta> degrees
-- turn right <theta> degrees
-- stop
+## Rules:
+- Output the description of the scene.
+- Explain purpose of your next action.
+- Output the next action.
+- description: free text
+- purpose: free text
+- action: choose one action from below.
+    - forward <d> cm: move forward by d cm
+    - backward <d> cm: move backward by d cm
+    - left <d> deg: turn left by d degrees
+    - right <d> deg: turn right by d degrees
+    - stop: stop
+- <d> is natural number.
+- don't forget to use the tags below.
 
-Rules:
-- Output only one line. No explanation.
-- Use integers for <d> and <theta>.
-- If the goal is reached or you are unsure, output: stop
-- Make decisions based on the surrounding circumstances.
+## Format
+```
+{{
+"description": "free text",
+"purpose": "free text",
+"action": "follow the rules strictly."
+}}
+```
 
-Task: "{instruction}"
-The next action is:
+Task: {instruction}
 """
 
 prompt_text = f"{DEFAULT_IMAGE_TOKEN}\n{NAV_PROMPT}"
@@ -79,7 +89,7 @@ with torch.inference_mode():
         input_ids,
         images=image_tensor,
         do_sample=False,
-        max_new_tokens=50,
+        max_new_tokens=1000,
         use_cache=True
     )
 
