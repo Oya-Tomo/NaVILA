@@ -81,11 +81,11 @@ current observation:
 
 - Output a JSON object that follows the template. Other type of output is forbidden.
 - Choose one action at a time.
-  - forward d cm: forward d cm, d in [1, 10]
-  - backward d cm: backward d cm, d in [1, 10]
-  - left d deg: left d deg, d in [1, 10]
-  - right d deg: right d deg, d in [1, 10]
-  - stop: stop
+  - forward d cm
+  - backward d cm
+  - left d deg
+  - right d deg
+  - stop
 
 ## Template
 {{
