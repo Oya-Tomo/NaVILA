@@ -88,7 +88,7 @@ current observation:
 Task: {instruction}
 """
 
-prompt_text = f"{DEFAULT_IMAGE_TOKEN}\n{NAV_PROMPT}"
+prompt_text = NAVIGATION_PROMPT
 conv.append_message(conv.roles[0], prompt_text)
 conv.append_message(conv.roles[1], None)
 full_prompt = conv.get_prompt()
