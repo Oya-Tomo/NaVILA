@@ -913,7 +913,6 @@
       <span class="action-badge" style="${badgeStyle}">${badgeText}</span>
     </div>`;
                 if (parsed) {
-                    if (parsed.description) html += field('Scene Description', esc(parsed.description));
                     if (parsed.action) html += `<div class="action-field">
       <div class="action-field-label">Action</div>
       <span class="action-command">${esc(parsed.action)}</span>
