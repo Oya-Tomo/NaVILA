@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NaVILA — Interactive Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <style>
+        /* ── Design tokens ── */
+        :root {
+            --bg: #0b0e14;
+            --surface: #13181f;
+            --surface2: #1a2030;
+            --border: #252d3d;
+            --accent: #4f8ef7;
+            --accent2: #7c5cf7;
+            --success: #34d399;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --radius: 12px;
+            --font: 'Inter', sans-serif;
+            --mono: 'JetBrains Mono', monospace;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Header ── */
+        header {
+            padding: 18px 32px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        header h1 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: .3px;
+        }
+
+        header p {
+            font-size: .78rem;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .status-pill {
+            margin-left: auto;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-pill .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--muted);
+        }
+
+        .status-pill.ready .dot {
+            background: var(--success);
+            animation: pulse 1.8s infinite;
+        }
+
+        .status-pill.ready {
+            color: var(--success);
+            border-color: var(--success)33;
+        }
+
+        .status-pill.running .dot {
+            background: var(--warning);
+            animation: pulse .8s infinite;
+        }
+
+        .status-pill.running {
+            color: var(--warning);
+            border-color: var(--warning)33;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .4
+            }
+        }
+
+        /* ── Layout ── */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 0;
+            max-height: calc(100vh - 73px);
+        }
+
+        /* ── Left panel ── */
+        .left-panel {
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            overflow-y: auto;
+        }
+
+        section {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        section h2 {
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 14px;
+        }
+
+        /* Camera */
+        #camera-wrap {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #000;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .cam-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #00000088;
+            font-size: .85rem;
+            color: var(--muted);
+            gap: 8px;
+        }
+
+        .cam-overlay.hidden {
+            display: none;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        button {
+            flex: 1;
+            padding: 9px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface2);
+            color: var(--text);
+            font-family: var(--font);
+            font-size: .83rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .15s, border-color .15s, transform .1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--border);
+            border-color: #3a4560;
+        }
+
+        button:active:not(:disabled) {
+            transform: scale(.97);
+        }
+
+        button:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-color: transparent;
+            color: #fff;
+        }
+
+        button.primary:hover:not(:disabled) {
+            filter: brightness(1.1);
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+        }
+
+        button.danger {
+            border-color: var(--danger)44;
+            color: var(--danger);
+        }
+
+        button.danger:hover:not(:disabled) {
+            background: var(--danger)18;
+        }
+
+        /* Frame strip */
+        #frame-strip {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        #frame-strip:empty::after {
+            content: 'No frames captured yet';
+            color: var(--muted);
+            font-size: .8rem;
+            padding: 6px 0;
+        }
+
+        .thumb {
+            flex: 0 0 64px;
+            height: 48px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .thumb .idx {
+            position: absolute;
+            bottom: 2px;
+            right: 3px;
+            font-size: .6rem;
+            font-weight: 600;
+            color: #fff;
+            background: #00000099;
+            border-radius: 3px;
+            padding: 1px 3px;
+        }
+
+        .frame-count {
+            font-size: .8rem;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .frame-count span {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Instruction */
+        textarea#instruction {
+            width: 100%;
+            min-height: 80px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: var(--font);
+            font-size: .85rem;
+            padding: 10px 12px;
+            resize: vertical;
+            transition: border-color .15s;
+        }
+
+        textarea#instruction:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        textarea#instruction::placeholder {
+            color: var(--muted);
+        }
+
+        /* ── Right panel ── */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .result-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .result-header h2 {
+            font-size: .85rem;
+            font-weight: 600;
+            color: var(--muted);
+            letter-spacing: .5px;
+            text-transform: uppercase;
+        }
+
+        .result-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Action card */
+        .action-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            animation: slideIn .3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        .action-card-header {
+            padding: 10px 16px;
+            background: var(--surface2);
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-badge {
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, var(--accent)22, var(--accent2)22);
+            border: 1px solid var(--accent)44;
+            color: var(--accent);
+            font-size: .72rem;
+            font-weight: 600;
+        }
+
+        .action-field {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .action-field:last-child {
+            border-bottom: none;
+        }
+
+        .action-field-label {
+            font-size: .7rem;
+            font-weight: 600;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .action-field-value {
+            font-size: .88rem;
+            line-height: 1.6;
+            color: var(--text);
+        }
+
+        .action-command {
+            font-family: var(--mono);
+            font-size: .95rem;
+            font-weight: 500;
+            color: var(--success);
+            background: var(--success)12;
+            border: 1px solid var(--success)30;
+            border-radius: 8px;
+            padding: 10px 14px;
+            display: inline-block;
+        }
+
+        /* Raw output */
+        .raw-toggle {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: .75rem;
+            cursor: pointer;
+            padding: 0;
+            flex: unset;
+            width: auto;
+        }
+
+        .raw-toggle:hover {
+            color: var(--text);
+            background: none;
+        }
+
+        pre.raw {
+            font-family: var(--mono);
+            font-size: .78rem;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--muted);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Empty state */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            gap: 12px;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            opacity: .3;
+        }
+
+        .empty-state p {
+            font-size: .88rem;
+            line-height: 1.6;
+            max-width: 280px;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: .83rem;
+            font-weight: 500;
+            color: #fff;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity .25s, transform .25s;
+            z-index: 999;
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: none;
+        }
+
+        #toast.info {
+            background: var(--accent);
+        }
+
+        #toast.success {
+            background: var(--success);
+        }
+
+        #toast.error {
+            background: var(--danger);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ── Header ── -->
+    <header>
+        <div class="logo">🤖</div>
+        <div>
+            <h1>NaVILA Interactive Demo</h1>
+            <p>Camera → 8-frame history → Navigation inference</p>
+        </div>
+        <div class="status-pill" id="status-pill">
+            <span class="dot"></span>
+            <span id="status-text">Connecting…</span>
+        </div>
+    </header>
+    <main>
+        <!-- ── Left panel ── -->
+        <div class="left-panel">
+            <!-- Camera -->
+            <section>
+                <h2>📷 Camera</h2>
+                <div id="camera-wrap">
+                    <video id="video" autoplay playsinline muted></video>
+                    <canvas id="canvas"></canvas>
+                    <div class="cam-overlay" id="cam-overlay">
+                        <span>📷</span><span>Click "Start Camera" to begin</span>
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button id="btn-start-cam">▶ Start Camera</button>
+                    <button id="btn-capture" class="primary" disabled>📸 Capture</button>
+                </div>
+            </section>
+            <!-- Frame history -->
+            <section>
+                <h2>🎞 Frame History</h2>
+                <p class="frame-count"><span id="frame-count">0</span> / 8 frames (FIFO, 8 max)</p>
+                <div id="frame-strip"></div>
+                <div class="btn-row" style="margin-top:14px;">
+                    <button id="btn-reset" class="danger">🗑 Clear History</button>
+                </div>
+            </section>
+            <!-- Instruction -->
+            <section>
+                <h2>💬 Instruction</h2>
+                <textarea id="instruction"
+                    placeholder="e.g. Go to the elevator and use it.">Go to the elevator and use it.</textarea>
+            </section>
+            <!-- Infer -->
+            <section style="border-bottom:none;">
+                <button id="btn-infer" class="primary" style="width:100%;padding:12px;" disabled>
+                    ⚡ Run Inference
+                </button>
+            </section>
+        </div>
+        <!-- ── Right panel ── -->
+        <div class="right-panel">
+            <div class="result-header">
+                <h2>Inference Result</h2>
+                <button class="raw-toggle" id="raw-toggle">Show raw</button>
+            </div>
+            <div class="result-body" id="result-body">
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-icon">🗺️</div>
+                    <p>Capture frames and press <strong>Run Inference</strong> to see the navigation decision here.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    <div id="toast"></div>
+    <script>
+        (() => {
+            'use strict';
+            // ── DOM refs ──────────────────────────────────────────────────────────────
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const camOverlay = document.getElementById('cam-overlay');
+            const btnStart = document.getElementById('btn-start-cam');
+            const btnCapture = document.getElementById('btn-capture');
+            const btnReset = document.getElementById('btn-reset');
+            const btnInfer = document.getElementById('btn-infer');
+            const frameStrip = document.getElementById('frame-strip');
+            const frameCount = document.getElementById('frame-count');
+            const instruction = document.getElementById('instruction');
+            const resultBody = document.getElementById('result-body');
+            const emptyState = document.getElementById('empty-state');
+            const statusPill = document.getElementById('status-pill');
+            const statusText = document.getElementById('status-text');
+            const rawToggle = document.getElementById('raw-toggle');
+            const toast = document.getElementById('toast');
+            // ── State ─────────────────────────────────────────────────────────────────
+            let camActive = false;
+            let frameCountVal = 0;
+            let showRaw = false;
+            let lastRaw = '';
+            let toastTimer = null;
+            // ── Toast ─────────────────────────────────────────────────────────────────
+            function showToast(msg, type = 'info', ms = 3000) {
+                toast.textContent = msg;
+                toast.className = `show ${type}`;
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
+            }
+            // ── Status pill ───────────────────────────────────────────────────────────
+            function setStatus(state, label) {
+                statusPill.className = `status-pill ${state}`;
+                statusText.textContent = label;
+            }
+            // ── Poll server status ────────────────────────────────────────────────────
+            async function pollStatus() {
+                try {
+                    const r = await fetch('/api/status');
+                    const d = await r.json();
+                    updateFrameCount(d.frame_count);
+                    setStatus('ready', 'Server ready');
+                } catch {
+                    setStatus('', 'Server unreachable');
+                }
+            }
+            pollStatus();
+            // ── Camera ────────────────────────────────────────────────────────────────
+            btnStart.addEventListener('click', async () => {
+                if (camActive) return;
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                    video.srcObject = stream;
+                    camActive = true;
+                    camOverlay.classList.add('hidden');
+                    btnStart.textContent = '✅ Camera on';
+                    btnStart.disabled = true;
+                    btnCapture.disabled = false;
+                } catch (e) {
+                    showToast('Camera access denied: ' + e.message, 'error');
+                }
+            });
+            // ── Capture ───────────────────────────────────────────────────────────────
+            btnCapture.addEventListener('click', async () => {
+                if (!camActive) return;
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                btnCapture.disabled = true;
+                try {
+                    const r = await fetch('/api/capture', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: dataUrl }),
+                    });
+                    const d = await r.json();
+                    if (!r.ok) { showToast(d.error || 'Capture failed', 'error'); return; }
+                    updateFrameCount(d.frame_count);
+                    addThumb(dataUrl, d.frame_count);
+                    showToast(`Frame ${d.frame_count} captured`, 'success', 1500);
+                    btnInfer.disabled = false;
+                } catch (e) {
+                    showToast('Network error: ' + e.message, 'error');
+                } finally {
+                    btnCapture.disabled = false;
+                }
+            });
+            // ── Reset ─────────────────────────────────────────────────────────────────
+            btnReset.addEventListener('click', async () => {
+                await fetch('/api/reset', { method: 'POST' });
+                frameStrip.innerHTML = '';
+                updateFrameCount(0);
+                btnInfer.disabled = true;
+                showToast('Frame history cleared', 'info', 1800);
+            });
+            // ── Frame count display ───────────────────────────────────────────────────
+            function updateFrameCount(n) {
+                frameCountVal = n;
+                frameCount.textContent = n;
+            }
+            function addThumb(dataUrl, idx) {
+                // Keep only last 8 thumbnails in strip
+                while (frameStrip.children.length >= 8) frameStrip.removeChild(frameStrip.firstChild);
+                const wrap = document.createElement('div');
+                wrap.className = 'thumb';
+                const img = document.createElement('img');
+                img.src = dataUrl;
+                const label = document.createElement('div');
+                label.className = 'idx';
+                label.textContent = idx;
+                wrap.appendChild(img);
+                wrap.appendChild(label);
+                frameStrip.appendChild(wrap);
+                frameStrip.scrollLeft = frameStrip.scrollWidth;
+            }
+            // ── Inference ─────────────────────────────────────────────────────────────
+            btnInfer.addEventListener('click', async () => {
+                const inst = instruction.value.trim();
+                if (!inst) { showToast('Please enter an instruction', 'error'); return; }
+                if (frameCountVal === 0) { showToast('Capture at least one frame first', 'error'); return; }
+                // Show spinner
+                setStatus('running', 'Running inference…');
+                btnInfer.disabled = true;
+                resultBody.innerHTML = `
+    <div class="empty-state">
+      <div class="spinner"></div>
+      <p>Running NaVILA inference…</p>
+    </div>`;
+                try {
+                    const r = await fetch('/api/infer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ instruction: inst }),
+                    });
+                    const d = await r.json();
+                    if (!r.ok) { showToast(d.error || 'Inference failed', 'error'); renderEmpty(); return; }
+                    lastRaw = d.result;
+                    renderResult(d.result);
+                    setStatus('ready', 'Server ready');
+                    showToast('Inference complete ✓', 'success');
+                } catch (e) {
+                    showToast('Network error: ' + e.message, 'error');
+                    setStatus('ready', 'Server ready');
+                    renderEmpty();
+                } finally {
+                    btnInfer.disabled = false;
+                }
+            });
+            // ── Raw toggle ────────────────────────────────────────────────────────────
+            rawToggle.addEventListener('click', () => {
+                showRaw = !showRaw;
+                rawToggle.textContent = showRaw ? 'Hide raw' : 'Show raw';
+                document.querySelectorAll('.raw').forEach(el => el.classList.toggle('hidden', !showRaw));
+            });
+            // ── Result rendering ──────────────────────────────────────────────────────
+            function renderEmpty() {
+                resultBody.innerHTML = `
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🗺️</div>
+      <p>Capture frames and press <strong>Run Inference</strong> to see the navigation decision here.</p>
+    </div>`;
+            }
+            function esc(str) {
+                return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+            function renderResult(raw) {
+                let parsed = null;
+                // Try to extract JSON block from the response
+                const jsonMatch = raw.match(/```[\s\S]*?(\{[\s\S]*?\})[\s\S]*?```/) ||
+                    raw.match(/(\{[\s\S]*?\})/);
+                if (jsonMatch) {
+                    try { parsed = JSON.parse(jsonMatch[1]); } catch { }
+                }
+                let html = `<div class="action-card">
+    <div class="action-card-header">
+      Navigation Decision
+      <span class="action-badge">${parsed?.action ? esc(parsed.action.split(' ')[0].toUpperCase()) : 'RESULT'}</span>
+    </div>`;
+                if (parsed) {
+                    if (parsed.description) html += field('Scene Description', esc(parsed.description));
+                    if (parsed.purpose) html += field('Purpose', esc(parsed.purpose));
+                    if (parsed.action) html += `<div class="action-field">
+      <div class="action-field-label">Action</div>
+      <span class="action-command">${esc(parsed.action)}</span>
+    </div>`;
+                } else {
+                    html += `<div class="action-field">
+      <div class="action-field-label">Raw Response</div>
+      <div class="action-field-value" style="white-space:pre-wrap;">${esc(raw)}</div>
+    </div>`;
+                }
+                html += `</div>
+  <pre class="raw${showRaw ? '' : ' hidden'}">${esc(raw)}</pre>`;
+                resultBody.innerHTML = html;
+            }
+            function field(label, val) {
+                return `<div class="action-field">
+    <div class="action-field-label">${label}</div>
+    <div class="action-field-value">${val}</div>
+  </div>`;
+            }
+        })();
+    </script>
+</body>
+
+</html>
