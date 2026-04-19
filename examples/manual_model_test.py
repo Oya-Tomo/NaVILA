@@ -10,6 +10,7 @@ import argparse
 import base64
 import io
 import json
+import re
 from collections import deque
 
 import torch
@@ -133,6 +134,30 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
     return tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
 
+def parse_toml_output(raw_text: str) -> dict | None:
+    """A simple regex-based TOML parser for the expected output format."""
+    # Extract TOML block if present
+    match = re.search(r"```(?:toml)?\n([\s\S]*?)\n```", raw_text, re.IGNORECASE)
+    toml_str = match.group(1) if match else raw_text
+
+    result = {}
+    # Match key = "value" or key = """value"""
+    pattern = re.compile(r'^([a-zA-Z0-9_-]+)\s*=\s*(?:"""([\s\S]*?)"""|"(.*?)"|\'(.*?)\')', re.MULTILINE)
+    for m in pattern.finditer(toml_str):
+        key = m.group(1)
+        # Choose whichever capture group matched
+        val = m.group(2)
+        if val is None:
+            val = m.group(3)
+        if val is None:
+            val = m.group(4)
+        if val is None:
+            val = ""
+        result[key] = val
+
+    return result if result else None
+
+
 # ---------------------------------------------------------------------------
 # Flask app
 # ---------------------------------------------------------------------------
@@ -180,8 +205,13 @@ def infer():
     while len(images) < MAX_FRAMES:
         images.insert(0, images[0])
 
-    result = run_inference(instruction, images)
-    return jsonify({"result": result})
+    raw_result = run_inference(instruction, images)
+    parsed_result = parse_toml_output(raw_result)
+    
+    return jsonify({
+        "raw": raw_result,
+        "parsed": parsed_result
+    })
 
 
 @app.route("/api/reset", methods=["POST"])

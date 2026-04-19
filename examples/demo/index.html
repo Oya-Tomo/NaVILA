@@ -859,8 +859,8 @@
                     });
                     const d = await r.json();
                     if (!r.ok) { showToast(d.error || 'Inference failed', 'error'); renderEmpty(); return; }
-                    lastRaw = d.result;
-                    renderResult(d.result);
+                    lastRaw = d.raw;
+                    renderResult(d);
                     setStatus('ready', 'Server ready');
                     showToast('Inference complete ✓', 'success');
                 } catch (e) {
@@ -888,34 +888,9 @@
             function esc(str) {
                 return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             }
-            function renderResult(raw) {
-                let parsed = null;
-                // Try to extract TOML block from the response
-                const tomlMatch = raw.match(/```(?:toml)?\n([\s\S]*?)\n```/i);
-                
-                let tomlString = raw;
-                if (tomlMatch) {
-                    tomlString = tomlMatch[1];
-                }
-
-                try {
-                    // Assuming @iarna/toml is available globally as `toml`
-                    if (window.toml && window.toml.parse) {
-                        parsed = window.toml.parse(tomlString);
-                    } else {
-                        // Fallback primitive regex parser if library fails to load
-                        parsed = {};
-                        const regex = /^([a-zA-Z0-9_-]+)\s*=\s*(?:"""([\s\S]*?)"""|"(.*?)"|'(.*?)')/gm;
-                        let match;
-                        while ((match = regex.exec(tomlString)) !== null) {
-                            parsed[match[1]] = match[2] || match[3] || match[4] || "";
-                        }
-                        if (Object.keys(parsed).length === 0) parsed = null;
-                    }
-                } catch (e) {
-                    console.error("TOML Parse Error:", e);
-                    parsed = null;
-                }
+            function renderResult(data) {
+                const raw = data.raw;
+                const parsed = data.parsed;
 
                 let badgeText = 'RESULT';
                 let badgeStyle = '';
