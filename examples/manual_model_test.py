@@ -32,7 +32,7 @@ parser.add_argument("--do_sample", action="store_true", default=False, help="Ena
 parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature, only used when --do_sample is set (default: 0.7)")
 parser.add_argument("--model_path", type=str, default="a8cheng/navila-llama3-8b-8f", help="HuggingFace model path")
 parser.add_argument("--port", type=int, default=5000, help="Port to run the server on (default: 5000)")
-parser.add_argument("--demo_dir", type=str, default="examples/demo", help="Path to demo static files")
+parser.add_argument("--demo_dir", type=str, default="demo", help="Path to demo static files")
 parser.add_argument("--max_frames", type=int, default=8, help="Maximum number of historical frames to use (default: 8)")
 args = parser.parse_args()
 
