@@ -1,3 +1,4 @@
+import argparse
 import torch
 
 from llava.model.builder import load_pretrained_model
@@ -9,14 +10,19 @@ from llava.mm_utils import (
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
 from llava.conversation import conv_templates
 
-model_path = "a8cheng/navila-llama3-8b-8f"
+parser = argparse.ArgumentParser(description="NaVILA model test")
+parser.add_argument("--load_4bit", action="store_true", default=True, help="Enable 4-bit quantization (default: True)")
+parser.add_argument("--do_sample", action="store_true", default=False, help="Enable sampling-based decoding (default: False = greedy)")
+parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature, only used when --do_sample is set (default: 0.7)")
+parser.add_argument("--model_path", type=str, default="a8cheng/navila-llama3-8b-8f", help="Model path (default: a8cheng/navila-llama3-8b-8f)")
+args = parser.parse_args()
 
 tokenizer, model, image_processor, context_len = load_pretrained_model(
-    model_path=model_path,
+    model_path=args.model_path,
     model_base=None,
-    model_name=get_model_name_from_path(model_path),
-    load_8bit=False,
-    load_4bit=True, # 4bit quantization
+    model_name=get_model_name_from_path(args.model_path),
+    load_8bit=not args.load_4bit, # fall back to 8-bit when 4-bit is disabled
+    load_4bit=args.load_4bit,     # 4-bit quantization
     device_map="auto",
     device="cuda",
     torch_dtype=torch.float16
@@ -93,7 +99,8 @@ with torch.inference_mode():
         images=image_tensor,
         attention_mask=attention_mask,
         pad_token_id=pad_token_id,
-        do_sample=False,
+        do_sample=args.do_sample,
+        temperature=args.temperature if args.do_sample else None,
         max_new_tokens=1000,
         use_cache=True
     )
