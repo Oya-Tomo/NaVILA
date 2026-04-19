@@ -166,7 +166,7 @@
         #camera-wrap {
             position: relative;
             width: 100%;
-            aspect-ratio: 4/3;
+            aspect-ratio: 1/1;
             background: #000;
             border-radius: var(--radius);
             overflow: hidden;
@@ -758,9 +758,15 @@
             // ── Capture ───────────────────────────────────────────────────────────────
             btnCapture.addEventListener('click', async () => {
                 if (!camActive) return;
-                canvas.width = video.videoWidth || 640;
-                canvas.height = video.videoHeight || 480;
-                canvas.getContext('2d').drawImage(video, 0, 0);
+                const vw = video.videoWidth || 640;
+                const vh = video.videoHeight || 480;
+                const size = Math.min(vw, vh);
+                const sx = (vw - size) / 2;
+                const sy = (vh - size) / 2;
+
+                canvas.width = size;
+                canvas.height = size;
+                canvas.getContext('2d').drawImage(video, sx, sy, size, size, 0, 0, size, size);
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                 btnCapture.disabled = true;
                 try {
@@ -914,7 +920,7 @@
     </div>`;
                 } else {
                     html += `<div class="action-field">
-      <div class="action-field-label" style="color: var(--danger);">Failed to Parse TOML</div>
+      <div class="action-field-label" style="color: var(--danger);">Failed to Parse JSON</div>
       <div class="action-field-value" style="white-space:pre-wrap;">${esc(raw)}</div>
     </div>`;
                 }

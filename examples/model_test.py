@@ -1,5 +1,6 @@
 import argparse
 import torch
+from PIL import Image
 
 from llava.model.builder import load_pretrained_model
 from llava.mm_utils import (
@@ -39,9 +40,21 @@ image_frame_paths = [
     "examples/images/scene1/frame8.jpg", # newer frame
 ]
 
+def crop_and_resize(img: Image.Image, size=384) -> Image.Image:
+    w, h = img.size
+    min_dim = min(w, h)
+    left = (w - min_dim) / 2
+    top = (h - min_dim) / 2
+    right = (w + min_dim) / 2
+    bottom = (h + min_dim) / 2
+    img = img.crop((left, top, right, bottom))
+    return img.resize((size, size), Image.Resampling.BICUBIC)
+
 instruction = "Go to the elevator and use it."
 
-image_tensor = process_images(image_frame_paths, image_processor, model.config)
+images = [crop_and_resize(Image.open(p).convert("RGB"), 384) for p in image_frame_paths]
+
+image_tensor = process_images(images, image_processor, model.config)
 if isinstance(image_tensor, list):
     image_tensor = [img.to(dtype=torch.float16, device='cuda') for img in image_tensor]
 else:
@@ -66,13 +79,13 @@ current observation:
 
 ## Format rules
 
-- Output a TOML object that follows the template. Other type of output is forbidden.
-- <d> is an natural number.
+- Output a JSON object that follows the template. Other type of output is forbidden.
+- Choose one action at a time.
 
-```toml
-description = "Description of current scene."
-action = "forward <d> cm | backward <d> cm | left <d> deg | right <d> deg | stop"
-```
+{{
+  "description": "Description of current scene.",
+  "action": "forward <d> cm | backward <d> cm | left <d> deg | right <d> deg | stop"
+}}
 """
 
 prompt_text = NAVIGATION_PROMPT

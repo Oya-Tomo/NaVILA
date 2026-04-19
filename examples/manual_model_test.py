@@ -76,17 +76,13 @@ current observation:
 
 ## Format rules
 
-- Output a TOML object that follows the template. Other type of output is forbidden.
-- <d> is an natural number.
+- Output a JSON object that follows the template. Other type of output is forbidden.
+- Choose one action at a time.
 
-```toml
-{result_template}
-```
-"""
-
-NAV_RESULT_TEMPLATE = """\
-description = "Description of current scene."
-action = "forward <d> cm | backward <d> cm | left <d> deg | right <d> deg | stop"
+{{
+    "description": "Description of current scene.",
+    "action": "forward <d> cm | backward <d> cm | left <d> deg | right <d> deg | stop"
+}}
 """
 
 
@@ -104,7 +100,6 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
         hist_image_tokens=hist_image_tokens,
         curr_image_token=DEFAULT_IMAGE_TOKEN,
         instruction=instruction,
-        result_template=NAV_RESULT_TEMPLATE,
     )
 
     conv = conv_templates["llama_3"].copy()
@@ -134,28 +129,34 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
     return tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
 
-def parse_toml_output(raw_text: str) -> dict | None:
-    """A simple regex-based TOML parser for the expected output format."""
-    # Extract TOML block if present
-    match = re.search(r"```(?:toml)?\n([\s\S]*?)\n```", raw_text, re.IGNORECASE)
-    toml_str = match.group(1) if match else raw_text
+def crop_and_resize(img: Image.Image, size=384) -> Image.Image:
+    w, h = img.size
+    min_dim = min(w, h)
+    left = (w - min_dim) / 2
+    top = (h - min_dim) / 2
+    right = (w + min_dim) / 2
+    bottom = (h + min_dim) / 2
+    img = img.crop((left, top, right, bottom))
+    return img.resize((size, size), Image.Resampling.BICUBIC)
 
-    result = {}
-    # Match key = "value" or key = """value"""
-    pattern = re.compile(r'^([a-zA-Z0-9_-]+)\s*=\s*(?:"""([\s\S]*?)"""|"(.*?)"|\'(.*?)\')', re.MULTILINE)
-    for m in pattern.finditer(toml_str):
-        key = m.group(1)
-        # Choose whichever capture group matched
-        val = m.group(2)
-        if val is None:
-            val = m.group(3)
-        if val is None:
-            val = m.group(4)
-        if val is None:
-            val = ""
-        result[key] = val
 
-    return result if result else None
+def parse_json_output(raw_text: str) -> dict | None:
+    """Extract and parse JSON block from the expected output format."""
+    match = re.search(r"```(?:json)?\n([\s\S]*?)\n```", raw_text, re.IGNORECASE)
+    json_str = match.group(1) if match else raw_text
+
+    try:
+        return json.loads(json_str.strip())
+    except Exception:
+        # Fallback to finding first { and last }
+        start = json_str.find("{")
+        end = json_str.rfind("}")
+        if start != -1 and end != -1:
+            try:
+                return json.loads(json_str[start:end+1])
+            except Exception:
+                pass
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +184,9 @@ def capture():
 
     img_bytes = base64.b64decode(image_b64)
     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+    
+    img = crop_and_resize(img, 384)
+    
     frame_history.append(img)
 
     return jsonify({"frame_count": len(frame_history), "max_frames": MAX_FRAMES})
@@ -206,7 +210,7 @@ def infer():
         images.insert(0, images[0])
 
     raw_result = run_inference(instruction, images)
-    parsed_result = parse_toml_output(raw_result)
+    parsed_result = parse_json_output(raw_result)
     
     return jsonify({
         "raw": raw_result,
