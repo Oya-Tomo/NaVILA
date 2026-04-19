@@ -62,6 +62,13 @@ frame_history: deque[Image.Image] = deque(maxlen=MAX_FRAMES)
 NAV_PROMPT_TEMPLATE = """\
 You are a navigation robot.
 
+## Environment Information
+
+a video of historical observations:
+{hist_image_tokens}
+current observation:
+{DEFAULT_IMAGE_TOKEN}
+
 ## Rules:
 - Output the description of the scene.
 - Explain purpose of your next action.
@@ -97,8 +104,14 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
     else:
         image_tensor = [image_tensor.to(dtype=torch.float16, device="cuda")]
 
-    nav_prompt = NAV_PROMPT_TEMPLATE.format(instruction=instruction)
-    prompt_text = f"{DEFAULT_IMAGE_TOKEN}\n{nav_prompt}"
+    # Create historical image tokens
+    hist_image_tokens = "\n".join([f"{DEFAULT_IMAGE_TOKEN}" for _ in range(len(images) - 1)])
+
+    prompt_text = NAV_PROMPT_TEMPLATE.format(
+        hist_image_tokens=hist_image_tokens,
+        DEFAULT_IMAGE_TOKEN=DEFAULT_IMAGE_TOKEN,
+        instruction=instruction
+    )
 
     conv = conv_templates["llama_3"].copy()
     conv.append_message(conv.roles[0], prompt_text)
