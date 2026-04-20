@@ -6,6 +6,8 @@ Usage:
     python examples/manual_model_test.py [--load_4bit] [--do_sample] [--temperature T] [--model_path PATH] [--port PORT]
 """
 
+from llava.mm_utils import KeywordsStoppingCriteria
+from llava.conversation import SeparatorStyle
 import argparse
 import base64
 import io
@@ -28,8 +30,6 @@ from llava.model.builder import load_pretrained_model
 parser = argparse.ArgumentParser(description="NaVILA interactive Flask demo")
 parser.add_argument("--load_4bit", action="store_true", default=True, help="Enable 4-bit quantization (default: True)")
 parser.add_argument("--no_load_4bit", dest="load_4bit", action="store_false", help="Disable 4-bit quantization (falls back to 8-bit)")
-parser.add_argument("--do_sample", action="store_true", default=False, help="Enable sampling-based decoding (default: False = greedy)")
-parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature, only used when --do_sample is set (default: 0.7)")
 parser.add_argument("--model_path", type=str, default="a8cheng/navila-llama3-8b-8f", help="HuggingFace model path")
 parser.add_argument("--port", type=int, default=5000, help="Port to run the server on (default: 5000)")
 parser.add_argument("--demo_dir", type=str, default="demo", help="Path to demo static files")
@@ -61,34 +61,13 @@ frame_history: deque[Image.Image] = deque(maxlen=args.max_frames)
 # Inference helper
 # ---------------------------------------------------------------------------
 NAV_PROMPT_TEMPLATE = """\
-You are a navigation robot.
-
-## Task
-{instruction}
-
-## Environment Information
-
-a video of historical observations:
-{hist_image_tokens}
-
-current observation:
-{curr_image_token}
-
-
-## Format rules
-
-- Output only the action and nothing else.
-- Follow the template strictly.
-- Choose one action at a time.
-  - forward d cm
-  - backward d cm
-  - left d degrees
-  - right d degrees
-  - stop
-
-## Template
-
-The next action is <action>
+Imagine you are a robot programmed for navigation tasks.
+You have been given a video of historical observations: {hist_image_tokens}
+and current observation: {curr_image_token}
+Your assigned task is: {instruction}
+Analyze this series of images to decide your next move,
+which could involve turning left or right by a specific degree,
+moving forward a certain distance, or stop if the task is completed.\
 """
 
 
@@ -100,10 +79,10 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
         image_tensor = [image_tensor.to(dtype=torch.float16, device="cuda")]
 
     # Create historical image tokens
-    hist_image_tokens = "\n".join([f"{DEFAULT_IMAGE_TOKEN}" for _ in range(len(images) - 1)])
+    hist_image_tokens = "\n".join([DEFAULT_IMAGE_TOKEN for _ in range(len(images) - 1)]) if len(images) > 1 else ""
 
     prompt_text = NAV_PROMPT_TEMPLATE.format(
-        hist_image_tokens=hist_image_tokens,
+        hist_image_tokens=hist_image_tokens,    
         curr_image_token=DEFAULT_IMAGE_TOKEN,
         instruction=instruction,
     )
@@ -120,16 +99,23 @@ def run_inference(instruction: str, images: list[Image.Image]) -> str:
     attention_mask = torch.ones_like(input_ids)
     pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
 
+    stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+    keywords = [stop_str]
+    stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
+
     with torch.inference_mode():
         output_ids = model.generate(
             input_ids,
             images=image_tensor,
             attention_mask=attention_mask,
             pad_token_id=pad_token_id,
-            do_sample=args.do_sample,
-            temperature=args.temperature if args.do_sample else None,
-            max_new_tokens=1000,
+            do_sample=False,
+            temperature=0,
+            top_p=None,
+            num_beams=1,
+            max_new_tokens=512,
             use_cache=True,
+            stopping_criteria=[stopping_criteria]
         )
 
     return tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
