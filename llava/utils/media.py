@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Union
 
 import numpy as np
 import PIL.Image
-from decord import VideoReader
 
 from llava.constants import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IMAGE_TOKEN
 from llava.media import Image, Video
@@ -34,6 +33,7 @@ def _extract_video(video: Video, config: Config) -> List[PIL.Image.Image]:
         frame_paths = list(np.array(frame_paths)[idx])
         frames = [PIL.Image.open(frame_path) for frame_path in frame_paths]
     else:
+        from decord import VideoReader  # lazy: decord has no aarch64 wheel (Jetson) — only needed for video
         video_reader = VideoReader(uri=video.path)
         idx = np.round(np.linspace(0, len(video_reader) - 1, num_frames)).astype(int)
         frames = video_reader.get_batch(idx).asnumpy()

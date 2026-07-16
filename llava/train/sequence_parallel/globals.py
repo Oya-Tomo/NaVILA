@@ -16,7 +16,13 @@
 
 import os
 
-import deepspeed.comm as dist
+try:
+    import deepspeed.comm as dist  # used during training (sequence parallelism)
+except ImportError:
+    # Inference-only installs don't require DeepSpeed; torch.distributed provides a
+    # compatible API (get_rank / new_group / is_initialized / get_world_size) so that
+    # `import llava` works without the heavy DeepSpeed dependency.
+    import torch.distributed as dist
 import torch
 
 

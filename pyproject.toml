@@ -7,22 +7,22 @@ name = "vila"
 version = "1.0.0"
 description = "VILA: On Pre-training for Visual Language Models"
 readme = "README.md"
-requires-python = ">=3.9,<3.13"
+requires-python = ">=3.12,<3.13"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
-    "torch==2.3.0", "torchvision==0.18.0",
-    "transformers==4.37.2", "tokenizers>=0.15.2", "sentencepiece==0.1.99", "shortuuid",
-    "accelerate==0.27.2", "peft==0.9.0", "bitsandbytes==0.41.0",
-    "pydantic<2,>=1", "markdown2[all]", "numpy==1.26.0", "scikit-learn==1.2.2",
+    "torch==2.12.1", "torchvision==0.27.1",
+    "transformers==4.37.2", "tokenizers>=0.15.2", "sentencepiece==0.2.0", "shortuuid",
+    "accelerate==0.27.2", "peft==0.9.0", "bitsandbytes==0.49.0",
+    "pydantic<2,>=1", "markdown2[all]", "numpy==1.26.0", "scikit-learn==1.5.2",
     "gradio==3.35.2", "gradio_client==0.2.9",
     "requests", "httpx==0.24.0", "uvicorn", "fastapi",
     "einops==0.6.1", "einops-exts==0.0.4", "timm==0.9.12",
-    "openpyxl==3.1.2", "pytorchvideo==0.1.5", "decord==0.6.0",
+    "openpyxl==3.1.2", "pytorchvideo==0.1.5",
     "datasets==2.16.1", "openai==1.8.0", "webdataset==0.2.86",
-    "nltk==3.3", "pywsd==1.2.4", "opencv-python==4.8.0.74",
+    "nltk==3.9.1", "pywsd==1.2.4", "opencv-python==4.10.0.84",
     "s2wrapper@git+https://github.com/bfshi/scaling_on_scales",
     "tyro", "pytest", "pre-commit", "loguru", "hydra-core"
 ]
@@ -34,14 +34,29 @@ vila-eval = "llava.cli.eval:main"
 [project.optional-dependencies]
 train = ["deepspeed==0.9.5", "ninja", "wandb"]
 eval = ["word2number", "Levenshtein", "nltk", "pywsd", "lmms-eval"]
-examples = ["setuptools", "flash-attn", "deepspeed==0.9.5", "flask"]
+examples = ["setuptools", "deepspeed==0.9.5", "flask"]
+# NOTE: flash-attn deferred (Phase 3) — no aarch64 wheel for torch 2.12; not needed
+# for SigLIP/Llama-3 inference (only InternViT + the patched modeling files hard-require it).
 
 [project.urls]
 "Homepage" = "https://hanlab.mit.edu/projects/vila"
 "Bug Tracker" = "https://github.com/Efficient-Large-Model/VILA-Internal/issues"
 
-[[tool.uv.sources.flash-attn]]
-url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.8/flash_attn-2.5.8+cu122torch2.3cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
+
+[tool.uv.sources]
+# On Jetson (aarch64 / JetPack 7.2 / CUDA 13) pull torch & torchvision from the
+# CUDA 13.2 index recommended for JetPack 7.2 (NVIDIA forum 372773).
+# x86_64 dev machines keep resolving from PyPI (backward compatibility).
+torch = [
+    { index = "pytorch-cu132", marker = "platform_machine == 'aarch64'" },
+]
+torchvision = [
+    { index = "pytorch-cu132", marker = "platform_machine == 'aarch64'" },
+]
 
 [tool.black]
 line-length = 120

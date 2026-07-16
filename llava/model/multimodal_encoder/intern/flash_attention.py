@@ -21,10 +21,18 @@ from einops import rearrange
 
 try:  # v1
     from flash_attn.flash_attn_interface import flash_attn_unpadded_qkvpacked_func
-except:  # v2
-    from flash_attn.flash_attn_interface import flash_attn_varlen_qkvpacked_func as flash_attn_unpadded_qkvpacked_func
-
-from flash_attn.bert_padding import pad_input, unpad_input
+    from flash_attn.bert_padding import pad_input, unpad_input
+except ImportError:
+    try:  # v2
+        from flash_attn.flash_attn_interface import flash_attn_varlen_qkvpacked_func as flash_attn_unpadded_qkvpacked_func
+        from flash_attn.bert_padding import pad_input, unpad_input
+    except ImportError:
+        # flash_attn is not installed (e.g. Jetson aarch64). These are only used
+        # inside FlashAttention.forward, which is never called for SigLIP/Llama-3
+        # models (only InternViT uses it), so importing the module is safe.
+        flash_attn_unpadded_qkvpacked_func = None
+        pad_input = None
+        unpad_input = None
 
 
 class FlashAttention(nn.Module):
