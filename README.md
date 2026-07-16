@@ -38,6 +38,45 @@ NaVILA is a two-level framework that combines VLAs with locomotion skills for na
 - [x] Release YouTube Human Touring dataset. (around June 30th)
 - [x] Release Isaac Sim evaluation, please see [here](https://github.com/yang-zj1026/NaVILA-Bench).
 
+## 🔧 Jetson AGX Orin (JetPack 7.2) — uv sync setup
+
+This fork supports a **`uv sync`-only inference environment** on **Jetson AGX Orin / JetPack 7.2 (L4T r39.2) / Ubuntu 24.04 / aarch64 / sm_87**. No conda/pip and no manual `transformers_replace` file-copy patching are required for inference.
+
+### Prerequisites
+- Flash the device with the **NVIDIA SDK Manager** so the standard JetPack 7.2 BSP/driver stack is installed. (A plain Ubuntu install via the Canonical guide leaves the GPU driver/library stack inconsistent and CUDA fails with `cuInit → 801, operation not supported`.) `cat /etc/nv_tegra_release` should show `R39 ... REVISION: 2.0`.
+- Add your user to the `video` and `render` groups for GPU device access, then **log out/in (or reboot)**:
+  ```bash
+  sudo usermod -aG video,render $USER
+  ```
+
+### Install
+```bash
+# 1. uv (it manages its own Python 3.12 via python-build-standalone)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2. sync — on aarch64 torch/torchvision resolve from the SBSA cu132 index
+uv sync
+```
+
+### Verify
+```bash
+# GPU is recognized on sm_87
+uv run python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_capability())"
+# True (8, 7)
+
+# End-to-end inference — loads a8cheng/navila-llama3-8b-8f (4-bit, fp16, CUDA)
+uv run python examples/model_test.py
+# -> "The next action is move forward 25 cm."
+```
+
+### Notes / known caveats
+- **torch**: pulled from the SBSA `cu132` index (`download.pytorch.org/whl/cu132`) gated on `platform_machine=='aarch64'`. The `Found GPU0 Orin ... CC 8.7` build-exclusion warning is expected — inference runs via PTX fallback (NVIDIA forum 372773, POST 3). x86_64 dev machines keep resolving torch from PyPI.
+- **bitsandbytes** ⚠️: 0.49.x ships **no CUDA 13.2 binary** (only up to `cuda130`), so 4-bit (NF4) quantization uses the minor-compatible CUDA 13.0 binary via `BNB_CUDA_VERSION=130`. This is applied **automatically** by `llava/__init__.py` whenever torch reports CUDA 13.2 — no manual `export` needed. Drop the workaround once bitsandbytes ships a `cuda132` wheel ([bitsandbytes #1937](https://github.com/bitsandbytes-foundation/bitsandbytes/issues/1937)).
+- **decord**: dropped from base deps (no aarch64 wheel) and lazily imported — only needed for video decoding.
+- **flash-attn / DeepSpeed**: not required for SigLIP/Llama-3 inference. `deepspeed.comm` falls back to `torch.distributed`, and the `flash_attn` import is guarded, so `import llava` works without them.
+- **Training / VLN-CE evaluation** still follow the conda flow below (out of scope for `uv sync`).
+
 ## 🚀 Training
 ### Installation
 To build environment for training NaVILA, please run the following:
