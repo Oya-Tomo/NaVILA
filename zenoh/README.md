@@ -48,6 +48,8 @@ $ cp zenoh/cli-zenoh-config.example.json5 zenoh/cli-zenoh-config.json5
 
 Edit all four runtime files. `node-config.json5` and `cli-config.json5` are strictly validated by Pydantic. The two `*-zenoh-config.json5` files are passed directly to Zenoh and configure mode, listen/connect endpoints, and discovery.
 
+These four local runtime files are ignored by Git to avoid committing host-specific endpoints or settings; the `*.example.json5` templates remain tracked.
+
 Settings must agree across the independent projects:
 
 | Purpose | NaVILA setting | External setting | Example key |

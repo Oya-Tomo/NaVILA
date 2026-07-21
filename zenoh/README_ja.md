@@ -48,6 +48,8 @@ $ cp zenoh/cli-zenoh-config.example.json5 zenoh/cli-zenoh-config.json5
 
 4つの runtime file をすべて編集してください。`node-config.json5` と `cli-config.json5` は Pydantic で厳密に検証します。2つの `*-zenoh-config.json5` は Zenoh に直接渡し、mode、listen/connect endpoint、discovery を設定します。
 
+ホスト固有のendpointや設定を誤ってcommitしないよう、この4つのローカルruntime fileはGitの管理対象外です。`*.example.json5` templateは引き続き追跡します。
+
 独立した各プロジェクト間で、次の設定を一致させます。
 
 | 用途 | NaVILA の設定 | 外部側の設定 | キーの例 |
