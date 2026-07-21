@@ -1,0 +1,20 @@
+{
+  mode: "peer",
+
+  // Accept direct P2P connections on every local network interface.
+  // A remote peer connects to tcp/<this-host-ip>:7447.
+  listen: {
+    endpoints: ["tcp/0.0.0.0:7447"],
+  },
+
+  // Add router or peer endpoints here when multicast discovery is unavailable.
+  connect: {
+    endpoints: [],
+  },
+
+  scouting: {
+    multicast: {
+      enabled: true,
+    },
+  },
+}

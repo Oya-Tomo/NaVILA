@@ -38,6 +38,12 @@ examples = ["setuptools", "deepspeed==0.9.5", "flask"]
 # NOTE: flash-attn deferred (Phase 3) — no aarch64 wheel for torch 2.12; not needed
 # for SigLIP/Llama-3 inference (only InternViT + the patched modeling files hard-require it).
 
+[dependency-groups]
+zenoh = [
+    "eclipse-zenoh>=1.9.0",
+    "json5>=0.15.0",
+]
+
 [project.urls]
 "Homepage" = "https://hanlab.mit.edu/projects/vila"
 "Bug Tracker" = "https://github.com/Efficient-Large-Model/VILA-Internal/issues"

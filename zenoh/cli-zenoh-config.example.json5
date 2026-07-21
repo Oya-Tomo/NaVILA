@@ -1,0 +1,14 @@
+{
+  mode: "client",
+
+  connect: {
+    // Replace 127.0.0.1 with the NaVILA host address when the CLI is remote.
+    endpoints: ["tcp/127.0.0.1:7447"],
+  },
+
+  scouting: {
+    multicast: {
+      enabled: false,
+    },
+  },
+}

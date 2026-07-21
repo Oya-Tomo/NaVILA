@@ -1,0 +1,6 @@
+{
+  node_key: "navila",
+  heartbeat_interval_sec: 0.2,
+  node_state_stale_timeout_sec: 1.0,
+  command_timeout_sec: 15.0,
+}
