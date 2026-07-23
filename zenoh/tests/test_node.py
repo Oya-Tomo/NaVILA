@@ -5,6 +5,7 @@ import warnings
 from contextlib import nullcontext
 from io import BytesIO
 from threading import Event
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,8 +21,11 @@ from config import (
 from node import (
     _GREEDY_GENERATION_OPTIONS,
     _suppress_known_model_advisories,
+    MODEL_SYSTEM_PROMPT,
     NaVILAEngine,
     NodeRuntime,
+    build_generation_config,
+    build_model_prompt,
     build_navigation_question,
     next_future_deadline,
     prepare_inference_frames,
@@ -272,8 +276,75 @@ def test_greedy_generation_options_are_explicit_and_neutral() -> None:
         "do_sample": False,
         "temperature": 1.0,
         "top_p": 1.0,
+        "top_k": 50,
+        "typical_p": 1.0,
+        "epsilon_cutoff": 0.0,
+        "eta_cutoff": 0.0,
+        "penalty_alpha": None,
         "num_beams": 1,
     }
+
+
+def test_model_prompt_uses_the_checkpoint_tokenizer_template() -> None:
+    tokenizer = MagicMock()
+    tokenizer.apply_chat_template.return_value = "<checkpoint-template>prompt"
+
+    prompt = build_model_prompt(tokenizer, "navigation question")
+
+    assert prompt == "<checkpoint-template>prompt"
+    tokenizer.apply_chat_template.assert_called_once_with(
+        [
+            {"role": "system", "content": MODEL_SYSTEM_PROMPT},
+            {"role": "user", "content": "navigation question"},
+        ],
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+
+def test_model_prompt_rejects_a_missing_checkpoint_template() -> None:
+    tokenizer = MagicMock()
+    tokenizer.apply_chat_template.side_effect = ValueError("no template")
+
+    with pytest.raises(RuntimeError, match="usable chat template"):
+        build_model_prompt(tokenizer, "navigation question")
+
+
+def test_generation_config_preserves_model_tokens_and_normalizes_greedy_decoding() -> None:
+    source = SimpleNamespace(
+        do_sample=True,
+        temperature=0.7,
+        top_p=0.8,
+        top_k=20,
+        eos_token_id=[151645, 151643],
+        pad_token_id=151643,
+        repetition_penalty=1.05,
+    )
+    model = SimpleNamespace(llm=SimpleNamespace(generation_config=source))
+    tokenizer = SimpleNamespace(eos_token_id=151645, pad_token_id=151643)
+
+    result = build_generation_config(model, tokenizer)
+
+    assert result is not source
+    assert source.top_k == 20
+    assert result.eos_token_id == [151645, 151643]
+    assert result.pad_token_id == 151643
+    assert result.repetition_penalty == 1.05
+    assert result.max_new_tokens == 32
+    assert result.use_cache is True
+    for name, value in _GREEDY_GENERATION_OPTIONS.items():
+        assert getattr(result, name) == value
+
+
+def test_generation_config_falls_back_to_tokenizer_tokens() -> None:
+    source = SimpleNamespace(eos_token_id=None, pad_token_id=None)
+    model = SimpleNamespace(llm=SimpleNamespace(generation_config=source))
+    tokenizer = SimpleNamespace(eos_token_id=128009, pad_token_id=128256)
+
+    result = build_generation_config(model, tokenizer)
+
+    assert result.eos_token_id == 128009
+    assert result.pad_token_id == 128009
 
 
 def test_known_model_advisories_are_scoped_and_exact() -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import logging
 import math
 import signal
@@ -40,10 +41,19 @@ WORKER_POLL_SECONDS = 0.05
 WORKER_JOIN_SECONDS = 1.0
 LOGGER = logging.getLogger(__name__)
 EVAL_PADDING_SIZE = (512, 512)
-_GREEDY_GENERATION_OPTIONS: dict[str, bool | float | int] = {
+MODEL_SYSTEM_PROMPT = (
+    "You are a helpful language and vision assistant. You are able to understand the visual content "
+    "that the user provides, and assist the user with a variety of tasks using natural language."
+)
+_GREEDY_GENERATION_OPTIONS: dict[str, bool | float | int | None] = {
     "do_sample": False,
     "temperature": 1.0,
     "top_p": 1.0,
+    "top_k": 50,
+    "typical_p": 1.0,
+    "epsilon_cutoff": 0.0,
+    "eta_cutoff": 0.0,
+    "penalty_alpha": None,
     "num_beams": 1,
 }
 _KNOWN_MODEL_LOG_PREFIXES = {
@@ -150,6 +160,53 @@ def build_navigation_question(instruction: str, frame_count: int) -> str:
     )
 
 
+def build_model_prompt(tokenizer: Any, question: str) -> str:
+    """Render navigation text with the chat template shipped by the checkpoint."""
+
+    messages = [
+        {"role": "system", "content": MODEL_SYSTEM_PROMPT},
+        {"role": "user", "content": question},
+    ]
+    try:
+        prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+    except (AttributeError, TypeError, ValueError) as error:
+        raise RuntimeError("loaded tokenizer does not provide a usable chat template") from error
+    if not isinstance(prompt, str) or not prompt:
+        raise RuntimeError("loaded tokenizer produced an invalid chat prompt")
+    return prompt
+
+
+def build_generation_config(model: Any, tokenizer: Any) -> Any:
+    """Copy model-specific token settings and normalize deterministic decoding."""
+
+    try:
+        generation_config = copy.deepcopy(model.llm.generation_config)
+    except AttributeError as error:
+        raise RuntimeError("loaded model does not provide an LLM generation config") from error
+
+    for name, value in _GREEDY_GENERATION_OPTIONS.items():
+        setattr(generation_config, name, value)
+    generation_config.max_new_tokens = 32
+    generation_config.use_cache = True
+
+    if getattr(generation_config, "eos_token_id", None) is None:
+        generation_config.eos_token_id = getattr(tokenizer, "eos_token_id", None)
+    if generation_config.eos_token_id is None:
+        raise RuntimeError("loaded model and tokenizer do not provide an EOS token")
+
+    if getattr(generation_config, "pad_token_id", None) is None:
+        generation_config.pad_token_id = getattr(tokenizer, "eos_token_id", None)
+    if generation_config.pad_token_id is None:
+        eos_token_ids = generation_config.eos_token_id
+        generation_config.pad_token_id = eos_token_ids[0] if isinstance(eos_token_ids, (list, tuple)) else eos_token_ids
+
+    return generation_config
+
+
 def _json_payload(model: Any) -> str:
     return model.json(separators=(",", ":"))
 
@@ -218,15 +275,11 @@ class NaVILAEngine:
         import torch
 
         from llava.constants import IMAGE_TOKEN_INDEX
-        from llava.conversation import SeparatorStyle, conv_templates
-        from llava.mm_utils import KeywordsStoppingCriteria, process_images, tokenizer_image_token
+        from llava.mm_utils import process_images, tokenizer_image_token
 
         frames = prepare_inference_frames(request.frames, self.num_video_frames)
         question = build_navigation_question(request.instruction, len(frames))
-        conversation = conv_templates["llama_3"].copy()
-        conversation.append_message(conversation.roles[0], question)
-        conversation.append_message(conversation.roles[1], None)
-        prompt = conversation.get_prompt()
+        prompt = build_model_prompt(self._tokenizer, question)
 
         device = self._model.device
         images = process_images(frames, self._image_processor, self._model.config)
@@ -245,26 +298,14 @@ class NaVILAEngine:
             .to(device)
         )
 
-        stop_string = conversation.sep if conversation.sep_style != SeparatorStyle.TWO else conversation.sep2
-        stopping_criteria = KeywordsStoppingCriteria(
-            [stop_string],
-            self._tokenizer,
-            input_ids,
-        )
+        generation_config = build_generation_config(self._model, self._tokenizer)
         with _suppress_known_model_advisories(), torch.inference_mode():
             output_ids = self._model.generate(
                 input_ids,
                 images=images,
-                **_GREEDY_GENERATION_OPTIONS,
-                max_new_tokens=32,
-                use_cache=True,
-                stopping_criteria=[stopping_criteria],
-                pad_token_id=self._tokenizer.eos_token_id,
+                generation_config=generation_config,
             )
-        output = self._tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
-        if output.endswith(stop_string):
-            output = output[: -len(stop_string)].strip()
-        return output
+        return self._tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
 
 class NodeRuntime:

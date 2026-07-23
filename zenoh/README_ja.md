@@ -150,7 +150,9 @@ Go2 state が `go2.node_state_timeout_seconds` の間届かなければ、推測
 
 検証は architecture ごとに明確に分けます。x86_64 の開発ホストで確認できるのは、設定と wire model、controller state machine、action parse、frame sampling/padding、schedule 計算、CLI acknowledgement、mock Zenoh による QoS/lifecycle 動作です。これらのテストは fake inference engine を使うため、Jetson の CUDA runtime や実際の NaVILA 推論は検証しません。lock file では platform ごとの選択を保持し、非 aarch64 では通常の PyPI Torch、aarch64 では設定済みの CUDA 13.2 index を選びます。
 
-model adapter は、sampling の値を中立化した deterministic greedy decoding を明示的に指定します。また、model load と生成の区間に限り、固定した Jetson dependency stack で既知の通知だけを厳密に絞って抑制します。対象は Hugging Face の `resume_download` deprecation、PyTorch の Orin CC 8.7 packaging 通知、意図的な bitsandbytes CUDA 13.0 binary override、bitsandbytes 内部の PyTorch deprecation、tokenizer の special-token 通知です。それ以外の Warning は引き続き表示されるため、新しい互換性問題を隠しません。
+model adapter は、各 checkpoint から読み込んだ chat template で navigation question を構築し、checkpoint 自身の EOS token ID で生成を終了します。これにより、Llama 3 8-frame と Qwen2 64-frame の両方を扱い、Qwen2へLlama固有のseparator文字列を適用しません。model固有のtoken IDやrepetition penaltyなどは維持しつつ、`top_k`を含むsampling値を中立化したdeterministic greedy decodingを指定します。
+
+また、model load と生成の区間に限り、固定した Jetson dependency stack で既知の通知だけを厳密に絞って抑制します。対象は Hugging Face の `resume_download` deprecation、PyTorch の Orin CC 8.7 packaging 通知、意図的な bitsandbytes CUDA 13.0 binary override、bitsandbytes 内部の PyTorch deprecation、tokenizer の special-token 通知です。それ以外の Warning は引き続き表示されるため、新しい互換性問題を隠しません。
 
 リポジトリルートから Zenoh 関連テストを実行します。
 
