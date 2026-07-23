@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import warnings
 from contextlib import nullcontext
 from io import BytesIO
 from threading import Event
@@ -16,6 +18,8 @@ from config import (
     StartCommand,
 )
 from node import (
+    _GREEDY_GENERATION_OPTIONS,
+    _suppress_known_model_advisories,
     NaVILAEngine,
     NodeRuntime,
     build_navigation_question,
@@ -178,7 +182,10 @@ def test_control_worker_publishes_state_and_velocity_at_20_hz(node_config: NodeC
     assert runtime._posture_publisher.put.call_count == 0
 
 
-def test_inference_worker_is_serial_and_skips_overrun_slots(node_config: NodeConfig) -> None:
+def test_inference_worker_is_serial_and_skips_overrun_slots(
+    node_config: NodeConfig,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     clock = FakeClock()
 
     class OverrunningEngine(FakeEngine):
@@ -195,9 +202,14 @@ def test_inference_worker_is_serial_and_skips_overrun_slots(node_config: NodeCon
     prepare_running_runtime(runtime)
     runtime._stop_workers = TimedStop(clock, stop_at=4.0)
 
-    runtime._run_inference_worker()
+    with caplog.at_level(logging.INFO, logger="node"):
+        runtime._run_inference_worker()
 
     assert engine.started_at == pytest.approx([0.0, 2.0])
+    assert [record.getMessage() for record in caplog.records] == [
+        "NaVILA inference output (1.400s): The next action is move forward 25 cm",
+        "NaVILA inference output (1.400s): The next action is move forward 25 cm",
+    ]
     clock.now = 1.0
     runtime._on_camera(FakeSample(b"not-a-jpeg", "image/jpeg"))
     assert runtime.controller.camera_sample_due()
@@ -253,3 +265,73 @@ def test_runtime_declares_separate_qos_and_uses_safe_shutdown(node_config: NodeC
 def test_model_frame_count_must_be_positive() -> None:
     with pytest.raises(ValueError, match="positive integer"):
         NaVILAEngine(MagicMock(), MagicMock(), MagicMock(), num_video_frames=0)
+
+
+def test_greedy_generation_options_are_explicit_and_neutral() -> None:
+    assert _GREEDY_GENERATION_OPTIONS == {
+        "do_sample": False,
+        "temperature": 1.0,
+        "top_p": 1.0,
+        "num_beams": 1,
+    }
+
+
+def test_known_model_advisories_are_scoped_and_exact() -> None:
+    bitsandbytes_logger = logging.getLogger("bitsandbytes.cextension")
+    transformers_logger = logging.getLogger("transformers.tokenization_utils_base")
+    records: list[logging.LogRecord] = []
+
+    class Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handlers = [Capture(), Capture()]
+    bitsandbytes_logger.addHandler(handlers[0])
+    transformers_logger.addHandler(handlers[1])
+    try:
+        with warnings.catch_warnings(record=True) as seen:
+            warnings.simplefilter("always")
+            with _suppress_known_model_advisories():
+                warnings.warn_explicit(
+                    "`resume_download` is deprecated and will be removed in version 1.0.0. "
+                    "Downloads always resume when possible.",
+                    FutureWarning,
+                    "file_download.py",
+                    949,
+                    module="huggingface_hub.file_download",
+                )
+                warnings.warn_explicit(
+                    "Found GPU0 Orin which is of compute capability (CC) 8.7.\nUnsupported capability details",
+                    UserWarning,
+                    "__init__.py",
+                    384,
+                    module="torch.cuda",
+                )
+                warnings.warn_explicit(
+                    "_check_is_size will be removed in a future PyTorch release along with "
+                    "guard_size_oblivious.",
+                    FutureWarning,
+                    "ops.py",
+                    212,
+                    module="bitsandbytes.backends.cuda.ops",
+                )
+                warnings.warn("unexpected model warning", RuntimeWarning)
+                bitsandbytes_logger.warning(
+                    "WARNING: BNB_CUDA_VERSION=130 environment variable detected; loading override."
+                )
+                bitsandbytes_logger.warning("unexpected bitsandbytes warning")
+                transformers_logger.warning(
+                    "Special tokens have been added in the vocabulary, make sure embeddings are trained."
+                )
+                transformers_logger.warning("unexpected transformers warning")
+    finally:
+        bitsandbytes_logger.removeHandler(handlers[0])
+        transformers_logger.removeHandler(handlers[1])
+
+    assert [(item.category, str(item.message)) for item in seen] == [
+        (RuntimeWarning, "unexpected model warning")
+    ]
+    assert [record.getMessage() for record in records] == [
+        "unexpected bitsandbytes warning",
+        "unexpected transformers warning",
+    ]

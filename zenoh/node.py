@@ -7,6 +7,7 @@ import logging
 import math
 import signal
 import time
+import warnings
 from collections.abc import Iterator, Sequence
 from contextlib import ExitStack, contextmanager
 from io import BytesIO
@@ -39,6 +40,58 @@ WORKER_POLL_SECONDS = 0.05
 WORKER_JOIN_SECONDS = 1.0
 LOGGER = logging.getLogger(__name__)
 EVAL_PADDING_SIZE = (512, 512)
+_GREEDY_GENERATION_OPTIONS: dict[str, bool | float | int] = {
+    "do_sample": False,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "num_beams": 1,
+}
+_KNOWN_MODEL_LOG_PREFIXES = {
+    "bitsandbytes.cextension": "WARNING: BNB_CUDA_VERSION=130 environment variable detected",
+    "transformers.tokenization_utils_base": "Special tokens have been added in the vocabulary",
+}
+
+
+class _KnownModelAdvisoryFilter(logging.Filter):
+    """Hide only advisories already accounted for by the pinned Jetson stack."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        prefix = _KNOWN_MODEL_LOG_PREFIXES.get(record.name)
+        return prefix is None or not record.getMessage().startswith(prefix)
+
+
+@contextmanager
+def _suppress_known_model_advisories() -> Iterator[None]:
+    """Scope known upstream warning noise to model loading and generation."""
+
+    log_filter = _KnownModelAdvisoryFilter()
+    filtered_loggers = [logging.getLogger(name) for name in _KNOWN_MODEL_LOG_PREFIXES]
+    for logger in filtered_loggers:
+        logger.addFilter(log_filter)
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"`resume_download` is deprecated and will be removed in version 1\.0\.0\.",
+                category=FutureWarning,
+                module=r"huggingface_hub\.file_download",
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Found GPU\d+ Orin which is of compute capability \(CC\) 8\.7\.",
+                category=UserWarning,
+                module=r"torch\.cuda",
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"_check_is_size will be removed in a future PyTorch release.*",
+                category=FutureWarning,
+                module=r"bitsandbytes\.(?:backends\.cuda\.ops|_ops)",
+            )
+            yield
+    finally:
+        for logger in filtered_loggers:
+            logger.removeFilter(log_filter)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -139,22 +192,23 @@ class NaVILAEngine:
 
     @classmethod
     def load(cls, config: NodeConfig) -> NaVILAEngine:
-        import torch
+        with _suppress_known_model_advisories():
+            import torch
 
-        from llava.mm_utils import get_model_name_from_path
-        from llava.model.builder import load_pretrained_model
+            from llava.mm_utils import get_model_name_from_path
+            from llava.model.builder import load_pretrained_model
 
-        quantization = config.model.quantization
-        tokenizer, model, image_processor, _context_length = load_pretrained_model(
-            model_path=config.model.key,
-            model_base=None,
-            model_name=get_model_name_from_path(config.model.key),
-            load_8bit=quantization == "8bit",
-            load_4bit=quantization == "4bit",
-            device_map="auto",
-            device="cuda",
-            torch_dtype=torch.float16,
-        )
+            quantization = config.model.quantization
+            tokenizer, model, image_processor, _context_length = load_pretrained_model(
+                model_path=config.model.key,
+                model_base=None,
+                model_name=get_model_name_from_path(config.model.key),
+                load_8bit=quantization == "8bit",
+                load_4bit=quantization == "4bit",
+                device_map="auto",
+                device="cuda",
+                torch_dtype=torch.float16,
+            )
         num_video_frames = getattr(model.config, "num_video_frames", None)
         if image_processor is None:
             raise RuntimeError("loaded model does not provide an image processor")
@@ -197,12 +251,11 @@ class NaVILAEngine:
             self._tokenizer,
             input_ids,
         )
-        with torch.inference_mode():
+        with _suppress_known_model_advisories(), torch.inference_mode():
             output_ids = self._model.generate(
                 input_ids,
                 images=images,
-                do_sample=False,
-                temperature=0.0,
+                **_GREEDY_GENERATION_OPTIONS,
                 max_new_tokens=32,
                 use_cache=True,
                 stopping_criteria=[stopping_criteria],
@@ -406,9 +459,11 @@ class NodeRuntime:
                         self.controller.fail_inference(error, failed_at=self._clock())
                     else:
                         completed_at = self._clock()
+                        duration_sec = completed_at - started_at
+                        LOGGER.info("NaVILA inference output (%.3fs): %s", duration_sec, output)
                         self.controller.complete_inference(
                             output,
-                            duration_sec=completed_at - started_at,
+                            duration_sec=duration_sec,
                             completed_at=completed_at,
                         )
                     self._wake_control.set()

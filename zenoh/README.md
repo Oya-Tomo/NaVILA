@@ -150,6 +150,8 @@ At startup, the first fresh Go2 state triggers one `down` request if the robot i
 
 Validation is intentionally split by architecture. On an x86_64 development host, the test suite validates configuration and wire models, the controller state machine, action parsing, frame sampling/padding, scheduling calculations, CLI acknowledgements, and mocked Zenoh QoS/lifecycle behavior. These tests use a fake inference engine and do **not** validate the Jetson CUDA runtime or real NaVILA inference. The lock file keeps separate platform selections: ordinary PyPI Torch on non-aarch64 hosts and the configured CUDA 13.2 index on aarch64.
 
+The model adapter requests deterministic greedy decoding with neutral sampling values. During model loading and generation it also suppresses only exact, known advisories from the pinned Jetson dependency stack: the Hugging Face `resume_download` deprecation, PyTorch's Orin CC 8.7 packaging advisory, the intentional bitsandbytes CUDA 13.0 binary override, bitsandbytes' internal PyTorch deprecation, and the tokenizer special-token notice. Other warnings remain visible. This keeps runtime output actionable without hiding new compatibility failures.
+
 Run the Zenoh tests from the repository root:
 
 ```console
