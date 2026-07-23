@@ -439,7 +439,9 @@ class NodeRuntime:
         if inference_worker.is_alive():
             raise RuntimeError("inference worker did not stop before shutdown deadline")
         if not self.controller.shutdown_complete:
-            raise RuntimeError("shutdown timed out before Go2 seating and inference completion")
+            raise RuntimeError(
+                "shutdown timed out before Go2 resting state and inference completion"
+            )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

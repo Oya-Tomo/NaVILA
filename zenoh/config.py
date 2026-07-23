@@ -294,8 +294,15 @@ class NodeState(FrozenModel):
     last_error: StrictStr | None
 
 
+class Go2Motion(str, Enum):
+    QUIESCENT = "quiescent"
+    MOVING = "moving"
+    UNKNOWN = "unknown"
+
+
 class Go2RobotState(ExternalModel):
     state: StrictStr
+    motion: Go2Motion
 
 
 class Go2NodeState(ExternalModel):

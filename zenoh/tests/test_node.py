@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from config import (
+    Go2Motion,
     Go2NodeState,
     Go2RobotState,
     HeartbeatCommand,
@@ -92,7 +93,7 @@ def prepare_running_runtime(runtime: NodeRuntime) -> None:
     runtime.controller.update_go2_state(
         Go2NodeState(
             robot_connected=True,
-            robot_state=Go2RobotState(state="down"),
+            robot_state=Go2RobotState(state="damping", motion=Go2Motion.QUIESCENT),
             accepting_commands=True,
         )
     )
@@ -104,7 +105,7 @@ def prepare_running_runtime(runtime: NodeRuntime) -> None:
     runtime.controller.update_go2_state(
         Go2NodeState(
             robot_connected=True,
-            robot_state=Go2RobotState(state="ready_stand"),
+            robot_state=Go2RobotState(state="ready_stand", motion=Go2Motion.QUIESCENT),
             accepting_commands=True,
         )
     )
@@ -211,7 +212,7 @@ def test_runtime_declares_separate_qos_and_uses_safe_shutdown(node_config: NodeC
     runtime.controller.update_go2_state(
         Go2NodeState(
             robot_connected=True,
-            robot_state=Go2RobotState(state="down"),
+            robot_state=Go2RobotState(state="damping", motion=Go2Motion.QUIESCENT),
             accepting_commands=True,
         )
     )

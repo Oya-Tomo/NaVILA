@@ -96,7 +96,7 @@ navila> start
 Start requested; waiting for Go2 ready_stand.
 Navigation started.
 Running - press Enter to stop
-Stopped; Go2 is down.
+Stopped; Go2 is resting.
 navila> ins Turn toward the open doorway
 navila> start
 ```
@@ -104,7 +104,7 @@ navila> start
 - `ins <text>` は idle または回復可能な error で instruction を変更します。引数なしの `ins` は空文字へ戻します。
 - `start` は NaVILA ノードへ stand を要求させ、`ready_stand` を待ってから推論を開始します。
 - `status` は最新の NaVILA state を表示します。`node_state_timeout_seconds` の間 state が届かなければ disconnected と表示します。
-- running prompt で Enter を押すと stop を送り、down 確認を待って CLI prompt に戻ります。
+- running prompt で Enter を押すと stop を送り、休止状態の確認を待って CLI prompt に戻ります。
 - `Ctrl+C` で CLI を終了します。idle が確認できない状態では先に `stop` を送り、`command_timeout_seconds`（例では15秒）まで待ちます。停止を確認できなくてもその旨を表示し、期限後には終了します。
 
 instruction の初期値は空文字なので、最初は `start` できません。stop/start をまたいで保持されますが、disk には保存されません。
@@ -125,7 +125,7 @@ instruction の初期値は空文字なので、最初は `start` できませ�
 
 履歴 deque の長さは `model.config.num_video_frames` から取得し、設定には重複して書きません。そのため8-frame model でも64-frame model でも、checkpoint 自身の長さが使われます。fresh な実画像が1枚あれば start でき、履歴が短い部分は左側を黒画像で padding します。最新の実画像は current observation のままです。idle 中も履歴を更新し、instruction 変更や stop/start をまたいでも保持します。過去の action や model output は prompt に加えません。
 
-推論が周期を超過した場合、過去の slot は飛ばし、推論同士を重ねません。推論中に stop を受けると lifecycle は直ちに `running` から外れ、完了後の結果は破棄されます。停止対象の推論が終わり、Go2 の down が確認されるまで次の start は受理しません。
+推論が周期を超過した場合、過去の slot は飛ばし、推論同士を重ねません。推論中に stop を受けると lifecycle は直ちに `running` から外れ、完了後の結果は破棄されます。停止対象の推論が終わり、Go2 の休止状態が確認されるまで次の start は受理しません。
 
 ## lifecycle と安全動作
 
@@ -136,15 +136,15 @@ initializing -> idle -> standing -> running -> stopping -> idle
                                                  \-> error
 ```
 
-start には、fresh な CLI heartbeat、空でない instruction、fresh で有効なカメラ画像、fresh かつ connected で command を受理できる Go2 state、Go2 の `down` 確認が必要です。ノードは `stand` を1回だけ送り、Go2 が `ready_stand` かつ command 受付可能と報告するまで推論も速度 publish も行いません。
+start には、fresh な CLI heartbeat、空でない instruction、fresh で有効なカメラ画像、fresh かつ connected で command を受理できる Go2 state、Go2 の休止状態の確認が必要です。NaVILA は、`motion == "quiescent"` かつ `state` が `damping` または `down` の状態を休止中と定義し、どちらの物理状態名も読み替えません。ノードは `stand` を1回だけ送り、その状態に適した SDK action の選択は Go2 ノードに任せます。Go2 が `ready_stand` かつ command 受付可能と報告するまで推論も速度 publish も行いません。
 
 running 中は最新の parse 済み action が以前の action を置き換えます。対応出力は `stop`、`move forward`、`turn left`、`turn right` です。距離は25/50/75 cm、旋回は15/30/45 degree に制限します。後退、横移動、不正、曖昧な出力を forward へ fallback することはありません。
 
-operator の Enter、CLI heartbeat 消失、model の `stop`、camera stale、Go2 state の stale/disconnect、parse/inference error、NaVILA の `SIGINT`/`SIGTERM` は、すべて同じ停止経路を通ります。ノードは直ちに `running` を抜け、現在 action を消去し、zero velocity を1回送ります。Go2 state が fresh な場合に限り、reliable な `down` を1回送り、Go2 の `down` と実行中だった推論の両方を待ちます。
+operator の Enter、CLI heartbeat 消失、model の `stop`、camera stale、Go2 state の stale/disconnect、parse/inference error、NaVILA の `SIGINT`/`SIGTERM` は、すべて同じ停止経路を通ります。ノードは直ちに `running` を抜け、現在 action を消去し、zero velocity を1回送ります。Go2 state が fresh な場合に限り、reliable な `down` を1回送り、Go2 の休止状態と実行中だった推論の両方を待ちます。
 
-Go2 state が `go2.node_state_timeout_seconds` の間届かなければ、推測による posture command の送信を止めて `error` へ移ります。`go2.down_timeout_seconds` までに down を確認できない場合も、非移動のまま着座未確認を報告します。回復後の `error` から start するには、down 確認を含む全 start 条件が再び有効である必要があります。ノード自身の shutdown も同じ停止経路を使い、安全完了を確認できなければ非ゼロで終了します。
+Go2 state が `go2.node_state_timeout_seconds` の間届かなければ、推測による posture command の送信を止めて `error` へ移ります。`go2.down_timeout_seconds` までに休止状態を確認できない場合も、非移動のまま安全な休止を未確認として報告します。回復後の `error` から start するには、休止状態の確認を含む全 start 条件が再び有効である必要があります。ノード自身の shutdown も同じ停止経路を使い、安全完了を確認できなければ非ゼロで終了します。
 
-起動後に初めて fresh な Go2 state が届いたとき、ロボットが down でなければ、CLI がなくても `down` を1回要求します。idle 中は Go2 velocity を publish しません。
+起動後に初めて fresh な Go2 state が届いたとき、ロボットが休止中でなければ、CLI がなくても `down` を1回要求します。idle 中は Go2 velocity を publish しません。
 
 ## 検証
 
@@ -158,4 +158,4 @@ $ uv run --group zenoh pytest zenoh/tests
 
 対象 Jetson では別途、`uv sync --group zenoh`、aarch64 CUDA 版 Torch/Torchvision と Zenoh wheel の import、設定した4bit/8bit/fp16 checkpoint の load、想定 frame 数での推論を確認し、GPU memory と inference latency を計測してください。x86_64 でテストが通っても、これら Jetson 固有項目が通る根拠にはなりません。
 
-実機試験の前に、Jetson 上でロボットなしの録画済み JPEG publisher を使った smoke test を行ってください。その後、Go2 を支持し緊急停止を即座に行える状態で、stand、低速 forward/turn、Enter stop、heartbeat-loss stop、down を確認してください。
+実機試験の前に、Jetson 上でロボットなしの録画済み JPEG publisher を使った smoke test を行ってください。その後、Go2 を支持し緊急停止を即座に行える状態で、stand、低速 forward/turn、Enter stop、heartbeat-loss stop、報告された quiescent な休止状態を確認してください。

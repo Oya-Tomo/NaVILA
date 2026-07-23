@@ -96,7 +96,7 @@ navila> start
 Start requested; waiting for Go2 ready_stand.
 Navigation started.
 Running - press Enter to stop
-Stopped; Go2 is down.
+Stopped; Go2 is resting.
 navila> ins Turn toward the open doorway
 navila> start
 ```
@@ -104,7 +104,7 @@ navila> start
 - `ins <text>` changes the instruction while idle or in a recoverable error. `ins` by itself clears it.
 - `start` asks the NaVILA node to stand, wait for `ready_stand`, and begin inference.
 - `status` prints the latest NaVILA state. State is reported disconnected after `node_state_timeout_seconds` without an update.
-- Press Enter at the running prompt to stop, wait for down confirmation, and return to the CLI prompt.
+- Press Enter at the running prompt to stop, wait for resting-state confirmation, and return to the CLI prompt.
 - Press `Ctrl+C` to exit. If the state is not confirmed idle, the CLI first sends `stop` and waits up to `command_timeout_seconds` (15 seconds in the example). It reports an unconfirmed stop but exits after the deadline.
 
 The instruction starts as an empty string, so `start` initially remains unavailable. It is retained across stop/start cycles and is never persisted to disk.
@@ -125,7 +125,7 @@ Thus, camera frames are not taken by a separate exactly-on-the-clock sampler. Un
 
 The history deque size comes from `model.config.num_video_frames`; it is not duplicated in configuration. An 8-frame or 64-frame checkpoint therefore selects its own history length. One fresh real image is enough to start. A short history is left-padded with black images, and the latest real image remains the current observation. History continues to update while idle and survives instruction changes and stop/start cycles. Previous actions and model outputs are not added to the prompt.
 
-An inference overrun skips missed schedule slots, and inference calls never overlap. A stop received during inference immediately changes the lifecycle out of `running`; when that inference returns, its result is discarded. A new start is not accepted until the stopped inference is complete and Go2 is confirmed down.
+An inference overrun skips missed schedule slots, and inference calls never overlap. A stop received during inference immediately changes the lifecycle out of `running`; when that inference returns, its result is discarded. A new start is not accepted until the stopped inference is complete and Go2 is confirmed resting.
 
 ## Lifecycle and safety behavior
 
@@ -136,15 +136,15 @@ initializing -> idle -> standing -> running -> stopping -> idle
                                                  \-> error
 ```
 
-Start requires a fresh CLI heartbeat, a non-empty instruction, a fresh valid camera image, a fresh connected Go2 state that accepts commands, and confirmed Go2 `down`. The node sends `stand` once and does not infer or publish velocity until Go2 reports `ready_stand` and accepts commands.
+Start requires a fresh CLI heartbeat, a non-empty instruction, a fresh valid camera image, a fresh connected Go2 state that accepts commands, and a confirmed Go2 resting state. NaVILA defines resting as `motion == "quiescent"` with `state` equal to either `damping` or `down`; it does not rename either physical state. The node sends `stand` once and leaves the Go2 node to select the correct SDK action for that state. It does not infer or publish velocity until Go2 reports `ready_stand` and accepts commands.
 
 While running, the latest parsed action replaces the previous action. Supported outputs are `stop`, `move forward`, `turn left`, and `turn right`. Distances are bounded to 25/50/75 cm and turns to 15/30/45 degrees. Backward, lateral, malformed, or ambiguous output never falls back to forward motion.
 
-All stop causes use one path: operator Enter, CLI heartbeat loss, model `stop`, stale camera, stale/disconnected Go2 state, parse/inference failure, or NaVILA `SIGINT`/`SIGTERM`. The node immediately leaves `running`, clears the current action, sends one zero-velocity command, and—only when Go2 state is fresh—sends one reliable `down` request. It then waits for both Go2 `down` and any in-flight inference.
+All stop causes use one path: operator Enter, CLI heartbeat loss, model `stop`, stale camera, stale/disconnected Go2 state, parse/inference failure, or NaVILA `SIGINT`/`SIGTERM`. The node immediately leaves `running`, clears the current action, sends one zero-velocity command, and—only when Go2 state is fresh—sends one reliable `down` request. It then waits for both a confirmed Go2 resting state and any in-flight inference.
 
-If Go2 state is absent for `go2.node_state_timeout_seconds`, the node stops sending posture guesses and enters `error`. If down is not confirmed before `go2.down_timeout_seconds`, it remains non-moving and reports seating as unconfirmed. A recovered `error` can accept `start` only after every start condition is valid again, including confirmed `down`. Node shutdown uses the same stop path and exits nonzero if safe completion cannot be confirmed.
+If Go2 state is absent for `go2.node_state_timeout_seconds`, the node stops sending posture guesses and enters `error`. If a resting state is not confirmed before `go2.down_timeout_seconds`, it remains non-moving and reports the safe rest as unconfirmed. A recovered `error` can accept `start` only after every start condition is valid again, including a confirmed resting state. Node shutdown uses the same stop path and exits nonzero if safe completion cannot be confirmed.
 
-At startup, the first fresh Go2 state triggers one `down` request if the robot is not already down, even when no CLI is connected. The node publishes no Go2 velocity while idle.
+At startup, the first fresh Go2 state triggers one `down` request if the robot is not already resting, even when no CLI is connected. The node publishes no Go2 velocity while idle.
 
 ## Validation
 
@@ -158,4 +158,4 @@ $ uv run --group zenoh pytest zenoh/tests
 
 On the target Jetson, separately verify `uv sync --group zenoh`, import the aarch64 CUDA Torch/Torchvision and Zenoh wheels, load the configured 4bit/8bit/fp16 checkpoint, and run inference with the intended frame count while monitoring GPU memory and inference latency. An x86_64 pass is not evidence that these Jetson-specific checks pass.
 
-Before a physical test, run a Jetson smoke test with a recorded-JPEG publisher and no robot. Then validate stand, low-speed forward/turn, Enter stop, heartbeat-loss stop, and down while the Go2 is supported and an emergency stop is immediately available.
+Before a physical test, run a Jetson smoke test with a recorded-JPEG publisher and no robot. Then validate stand, low-speed forward/turn, Enter stop, heartbeat-loss stop, and the reported quiescent resting state while the Go2 is supported and an emergency stop is immediately available.

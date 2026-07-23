@@ -146,7 +146,7 @@ def test_start_and_stop_wait_for_node_state_acknowledgements() -> None:
 
     assert runtime._request_stop(report_timeout=True)
     assert publisher.payloads[-1] == {"type": "stop"}
-    assert outputs[-1] == "Stopped; Go2 is down."
+    assert outputs[-1] == "Stopped; Go2 is resting."
 
 
 def test_start_refuses_disconnected_or_not_ready_node() -> None:

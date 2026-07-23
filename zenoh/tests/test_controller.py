@@ -5,6 +5,7 @@ import math
 import pytest
 from config import (
     ActionType,
+    Go2Motion,
     Go2NodeState,
     Go2RobotState,
     HeartbeatCommand,
@@ -26,10 +27,16 @@ class FakeClock:
         return self.now
 
 
-def go2(state: str, *, connected: bool = True, accepting: bool = True) -> Go2NodeState:
+def go2(
+    state: str,
+    *,
+    motion: Go2Motion = Go2Motion.QUIESCENT,
+    connected: bool = True,
+    accepting: bool = True,
+) -> Go2NodeState:
     return Go2NodeState(
         robot_connected=connected,
-        robot_state=Go2RobotState(state=state),
+        robot_state=Go2RobotState(state=state, motion=motion),
         accepting_commands=accepting,
     )
 
@@ -43,7 +50,7 @@ def make_running(
     controller = Controller(config, num_video_frames=num_video_frames, clock=clock)
     controller.initialize()
     controller.append_camera_frame(Image.new("RGB", (8, 8), "white"))
-    controller.update_go2_state(go2("down"))
+    controller.update_go2_state(go2("damping"))
     controller.advance()
     controller.handle_command(HeartbeatCommand())
     assert controller.handle_command(InstructionCommand(instruction="go to the elevator"))
@@ -123,7 +130,7 @@ def test_camera_callback_sampling_is_bounded_fifo_without_catch_up(node_config: 
     clock.now = 4.0
     assert controller.append_camera_frame(blue)
 
-    controller.update_go2_state(go2("down"))
+    controller.update_go2_state(go2("damping"))
     controller.advance()
     controller.handle_command(HeartbeatCommand())
     controller.handle_command(InstructionCommand(instruction="test"))
@@ -146,7 +153,7 @@ def test_start_waits_for_ready_stand_and_publishes_zero_until_first_result(node_
     controller.handle_command(HeartbeatCommand())
     controller.handle_command(InstructionCommand(instruction="test"))
     controller.append_camera_frame(Image.new("RGB", (4, 4)))
-    controller.update_go2_state(go2("down"))
+    controller.update_go2_state(go2("damping"))
     controller.advance()
 
     assert controller.handle_command(StartCommand())
@@ -168,7 +175,27 @@ def test_start_waits_for_ready_stand_and_publishes_zero_until_first_result(node_
     }
 
 
-def test_stop_discards_in_flight_result_and_waits_for_down(node_config: NodeConfig) -> None:
+@pytest.mark.parametrize("resting_state", ["damping", "down"])
+def test_start_accepts_quiescent_go2_resting_states(
+    node_config: NodeConfig,
+    resting_state: str,
+) -> None:
+    clock = FakeClock()
+    controller = Controller(node_config, num_video_frames=4, clock=clock)
+    controller.initialize()
+    controller.handle_command(HeartbeatCommand())
+    controller.handle_command(InstructionCommand(instruction="test"))
+    controller.append_camera_frame(Image.new("RGB", (4, 4)))
+    controller.update_go2_state(go2(resting_state))
+
+    controller.advance()
+
+    assert controller.take_effects().posture is None
+    assert controller.snapshot().start_ready
+    assert controller.handle_command(StartCommand())
+
+
+def test_stop_discards_in_flight_result_and_waits_for_resting_state(node_config: NodeConfig) -> None:
     clock = FakeClock()
     controller = make_running(node_config, clock)
     assert controller.begin_inference() is not None
@@ -181,7 +208,7 @@ def test_stop_discards_in_flight_result_and_waits_for_down(node_config: NodeConf
     assert effects.posture == "down"
 
     assert not controller.complete_inference("The next action is move forward 50 cm", duration_sec=0.8)
-    controller.update_go2_state(go2("down"))
+    controller.update_go2_state(go2("damping"))
     controller.advance()
 
     state = controller.snapshot()
@@ -214,7 +241,7 @@ def test_current_action_replaces_previous_result_and_expires_to_zero(node_config
     }
 
 
-def test_down_confirmation_waits_for_in_flight_inference_past_posture_deadline(
+def test_resting_confirmation_waits_for_in_flight_inference_past_posture_deadline(
     node_config: NodeConfig,
 ) -> None:
     clock = FakeClock()
@@ -224,7 +251,7 @@ def test_down_confirmation_waits_for_in_flight_inference_past_posture_deadline(
     controller.take_effects()
 
     clock.now = 11.0
-    controller.update_go2_state(go2("down"))
+    controller.update_go2_state(go2("damping"))
     controller.advance()
     assert controller.snapshot().lifecycle is Lifecycle.STOPPING
 
@@ -233,20 +260,24 @@ def test_down_confirmation_waits_for_in_flight_inference_past_posture_deadline(
     assert controller.snapshot().lifecycle is Lifecycle.IDLE
 
 
-def test_down_timeout_enters_error_and_remains_non_moving(node_config: NodeConfig) -> None:
+@pytest.mark.parametrize("motion", [Go2Motion.MOVING, Go2Motion.UNKNOWN])
+def test_non_quiescent_damping_times_out_and_remains_non_moving(
+    node_config: NodeConfig,
+    motion: Go2Motion,
+) -> None:
     clock = FakeClock()
     controller = make_running(node_config, clock)
     controller.handle_command(StopCommand())
     controller.take_effects()
 
     clock.now = 10.0
-    controller.update_go2_state(go2("ready_stand"))
+    controller.update_go2_state(go2("damping", motion=motion))
     controller.advance()
 
     state = controller.snapshot()
     assert state.lifecycle is Lifecycle.ERROR
     assert state.action is None
-    assert "down" in state.last_error
+    assert "resting state" in state.last_error
     assert controller.velocity_for_publish() is None
 
 

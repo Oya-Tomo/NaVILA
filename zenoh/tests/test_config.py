@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from config import (
     CliConfig,
+    Go2Motion,
     HeartbeatCommand,
     InstructionCommand,
     Lifecycle,
@@ -176,7 +177,11 @@ def test_go2_state_matches_develop_public_contract() -> None:
 
     assert state.robot_connected
     assert state.robot_state.state == "ready_stand"
+    assert state.robot_state.motion is Go2Motion.QUIESCENT
     assert state.accepting_commands
+
+    with pytest.raises(ValidationError):
+        decode_go2_state(payload.replace(b'"motion":"quiescent",', b""))
 
     with pytest.raises(ValidationError):
         decode_go2_state(

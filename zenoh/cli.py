@@ -281,9 +281,11 @@ class CliRuntime:
                 self._output("Stop was not confirmed before the timeout.")
             return False
         if stopped.lifecycle is Lifecycle.ERROR:
-            self._output(f"Stopped with error: {stopped.last_error or 'Go2 seating was not confirmed'}")
+            self._output(
+                f"Stopped with error: {stopped.last_error or 'Go2 resting state was not confirmed'}"
+            )
         else:
-            self._output("Stopped; Go2 is down.")
+            self._output("Stopped; Go2 is resting.")
         return True
 
     def _stop_before_exit(self) -> None:

@@ -13,6 +13,7 @@ from typing import Callable, Literal, Sequence
 from config import (
     ActionState,
     ActionType,
+    Go2Motion,
     Go2NodeState,
     HeartbeatCommand,
     InferenceState,
@@ -30,6 +31,7 @@ from PIL import Image
 ZERO_VELOCITY = VelocityCommand(vx=0.0, vy=0.0, vyaw=0.0)
 FORWARD_AMOUNTS_CM = (25, 50, 75)
 TURN_AMOUNTS_DEGREES = (15, 30, 45)
+GO2_RESTING_STATES = frozenset(("damping", "down"))
 
 _ACTION_PATTERNS = {
     ActionType.STOP: re.compile(r"\bstop\b", re.IGNORECASE),
@@ -64,6 +66,15 @@ class ControlEffects:
 
 def _nearest(value: int, choices: Sequence[int]) -> int:
     return min(choices, key=lambda candidate: (abs(candidate - value), candidate))
+
+
+def is_go2_resting(state: Go2NodeState) -> bool:
+    """Return whether Go2 reports a settled posture from which it can stand."""
+
+    return (
+        state.robot_state.motion is Go2Motion.QUIESCENT
+        and state.robot_state.state in GO2_RESTING_STATES
+    )
 
 
 def parse_navigation_action(output: str, config: NodeConfig) -> ParsedAction:
@@ -152,12 +163,12 @@ class Controller:
         self._current_action: ParsedAction | None = None
         self._action_deadline: float | None = None
         self._stand_deadline: float | None = None
-        self._down_deadline: float | None = None
+        self._rest_deadline: float | None = None
         self._last_error: str | None = None
         self._stop_error: str | None = None
         self._zero_pending = False
         self._posture_pending: Literal["stand", "down"] | None = None
-        self._startup_seat_pending = True
+        self._startup_rest_pending = True
         self._shutdown_requested = False
         self._shutdown_complete = False
 
@@ -313,7 +324,7 @@ class Controller:
             elif self._lifecycle is Lifecycle.STOPPING:
                 self._advance_stop(now)
             elif self._lifecycle is Lifecycle.IDLE:
-                self._advance_startup_seating(now)
+                self._advance_startup_rest(now)
 
     def take_effects(self) -> ControlEffects:
         with self._lock:
@@ -405,36 +416,40 @@ class Controller:
         self._current_action = None
         self._action_deadline = None
         self._stand_deadline = None
-        self._down_deadline = now + self._config.go2.down_timeout_seconds
+        self._rest_deadline = now + self._config.go2.down_timeout_seconds
         self._zero_pending = True
         self._posture_pending = "down" if request_down else None
 
     def _advance_stop(self, now: float) -> None:
         if not self._go2_available(now):
             self._posture_pending = None
-            self._finish_stop(error=self._stop_error or "Go2 state became stale before down was confirmed")
+            self._finish_stop(
+                error=self._stop_error or "Go2 state became stale before a resting state was confirmed"
+            )
             return
-        if self._go2_state is not None and self._go2_state.robot_state.state == "down":
-            self._startup_seat_pending = False
+        if self._go2_state is not None and is_go2_resting(self._go2_state):
+            self._startup_rest_pending = False
             if not self._inference_active:
                 self._finish_stop(error=self._stop_error)
             return
-        if self._down_deadline is not None and now >= self._down_deadline:
-            self._finish_stop(error=self._stop_error or "Go2 did not confirm down before timeout")
+        if self._rest_deadline is not None and now >= self._rest_deadline:
+            self._finish_stop(
+                error=self._stop_error or "Go2 did not confirm a resting state before timeout"
+            )
 
     def _finish_stop(self, *, error: str | None) -> None:
-        self._down_deadline = None
+        self._rest_deadline = None
         self._last_error = error
         self._lifecycle = Lifecycle.ERROR if error is not None else Lifecycle.IDLE
         if self._shutdown_requested:
             self._shutdown_complete = True
 
-    def _advance_startup_seating(self, now: float) -> None:
-        if not self._startup_seat_pending or not self._go2_available(now):
+    def _advance_startup_rest(self, now: float) -> None:
+        if not self._startup_rest_pending or not self._go2_available(now):
             return
         assert self._go2_state is not None
-        if self._go2_state.robot_state.state == "down":
-            self._startup_seat_pending = False
+        if is_go2_resting(self._go2_state):
+            self._startup_rest_pending = False
             return
         self._begin_stop(now, error=None, request_down=True, allow_idle=True)
 
@@ -492,8 +507,8 @@ class Controller:
             return "Go2 node reports disconnected"
         if not self._go2_state.accepting_commands:
             return "Go2 node is not accepting commands"
-        if self._go2_state.robot_state.state != "down":
-            return "waiting for Go2 to be down"
+        if not is_go2_resting(self._go2_state):
+            return "waiting for Go2 to be resting"
         return None
 
     def _status_message(self, readiness_reason: str | None) -> str | None:
@@ -504,7 +519,7 @@ class Controller:
         if self._lifecycle is Lifecycle.RUNNING:
             return "running"
         if self._lifecycle is Lifecycle.STOPPING:
-            return "stopping and seating Go2"
+            return "stopping Go2 and waiting for a resting state"
         if self._lifecycle is Lifecycle.ERROR:
             return self._last_error or readiness_reason or "error"
         return readiness_reason or "ready"
