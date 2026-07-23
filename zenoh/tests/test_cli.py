@@ -33,10 +33,10 @@ class RecordingPublisher:
 
 def cli_config() -> CliConfig:
     return CliConfig(
-        node_key="navila",
-        heartbeat_interval_sec=0.2,
-        node_state_stale_timeout_sec=1.0,
-        command_timeout_sec=15.0,
+        zenoh_key_prefix="navila",
+        heartbeat_interval_seconds=0.2,
+        node_state_timeout_seconds=1.0,
+        command_timeout_seconds=15.0,
     )
 
 

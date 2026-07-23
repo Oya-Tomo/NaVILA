@@ -307,10 +307,10 @@ class NodeRuntime:
     def _keyspace(self) -> dict[str, str]:
         return {
             "camera": self._config.camera.key,
-            "command": f"{self._config.node_key}/command",
-            "state": f"{self._config.node_key}/state",
-            "go2_command": f"{self._config.go2.robot_key}/command",
-            "go2_state": f"{self._config.go2.robot_key}/state",
+            "command": f"{self._config.zenoh_key_prefix}/command",
+            "state": f"{self._config.zenoh_key_prefix}/state",
+            "go2_command": f"{self._config.go2.zenoh_key_prefix}/command",
+            "go2_state": f"{self._config.go2.zenoh_key_prefix}/state",
         }
 
     def _on_control(self, sample: Any) -> None:
@@ -358,8 +358,8 @@ class NodeRuntime:
             self._camera_decode_lock.release()
 
     def _run_control_worker(self) -> None:
-        state_period = 1.0 / self._config.publish.state_frequency_hz
-        velocity_period = 1.0 / self._config.publish.velocity_frequency_hz
+        state_period = 1.0 / self._config.node_state_publish_frequency_hz
+        velocity_period = 1.0 / self._config.go2_velocity_publish_frequency_hz
         next_state = self._clock()
         next_velocity = next_state
         try:
@@ -425,7 +425,7 @@ class NodeRuntime:
     def _shutdown(self, control_worker: Thread, inference_worker: Thread) -> None:
         self.controller.request_shutdown(now=self._clock())
         self._wake_control.set()
-        deadline = self._clock() + self._config.go2.down_timeout_sec
+        deadline = self._clock() + self._config.go2.down_timeout_seconds
         while not self.controller.shutdown_complete and control_worker.is_alive() and self._clock() < deadline:
             self._wake_control.set()
             time.sleep(WORKER_POLL_SECONDS)

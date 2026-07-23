@@ -15,28 +15,26 @@ from config import NodeConfig  # noqa: E402
 def node_config() -> NodeConfig:
     return NodeConfig.parse_obj(
         {
-            "node_key": "navila",
+            "zenoh_key_prefix": "navila",
+            "node_state_publish_frequency_hz": 20.0,
+            "go2_velocity_publish_frequency_hz": 20.0,
             "model": {"key": "model", "quantization": "4bit"},
             "camera": {
                 "key": "camera/front",
                 "sample_frequency_hz": 1.0,
-                "stale_timeout_sec": 2.5,
+                "frame_freshness_seconds": 2.5,
             },
             "inference": {"frequency_hz": 1.0},
             "motion": {
                 "forward_velocity_mps": 0.5,
                 "turn_velocity_rps": 1.0,
             },
-            "publish": {
-                "velocity_frequency_hz": 20.0,
-                "state_frequency_hz": 20.0,
-            },
-            "control": {"cli_heartbeat_timeout_sec": 1.0},
+            "control": {"cli_heartbeat_timeout_seconds": 1.0},
             "go2": {
-                "robot_key": "unitree/go2",
-                "state_stale_timeout_sec": 0.5,
-                "stand_timeout_sec": 10.0,
-                "down_timeout_sec": 10.0,
+                "zenoh_key_prefix": "unitree/go2",
+                "node_state_timeout_seconds": 0.5,
+                "stand_timeout_seconds": 10.0,
+                "down_timeout_seconds": 10.0,
             },
         }
     )

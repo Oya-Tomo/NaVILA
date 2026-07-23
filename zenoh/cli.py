@@ -70,11 +70,11 @@ class StateCache:
 
     def __init__(
         self,
-        stale_timeout_sec: float,
+        timeout_seconds: float,
         *,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self._stale_timeout_sec = stale_timeout_sec
+        self._timeout_seconds = timeout_seconds
         self._clock = clock
         self._condition = Condition()
         self._revision = 0
@@ -104,7 +104,7 @@ class StateCache:
     def snapshot(self, *, now: float | None = None) -> tuple[int, NodeState | None, bool]:
         now = self._clock() if now is None else now
         with self._condition:
-            fresh = self._received_at is not None and now - self._received_at <= self._stale_timeout_sec
+            fresh = self._received_at is not None and now - self._received_at <= self._timeout_seconds
             return self._revision, self._state, fresh
 
     def wait_after(
@@ -112,9 +112,9 @@ class StateCache:
         revision: int,
         predicate: Callable[[NodeState], bool],
         *,
-        timeout_sec: float,
+        timeout_seconds: float,
     ) -> NodeState | None:
-        deadline = time.monotonic() + timeout_sec
+        deadline = time.monotonic() + timeout_seconds
         with self._condition:
             while True:
                 if self._revision > revision and self._state is not None and predicate(self._state):
@@ -138,7 +138,7 @@ class CliRuntime:
         self._config = config
         self._input = input_fn
         self._output = output_fn
-        self._states = StateCache(config.node_state_stale_timeout_sec)
+        self._states = StateCache(config.node_state_timeout_seconds)
         self._heartbeat_publisher: Any = None
         self._command_publisher: Any = None
         self._stop_heartbeat = Event()
@@ -146,8 +146,8 @@ class CliRuntime:
 
     def run(self, zenoh_config: zenoh.Config) -> None:
         zenoh.init_log_from_env_or("error")
-        command_key = f"{self._config.node_key}/command"
-        state_key = f"{self._config.node_key}/state"
+        command_key = f"{self._config.zenoh_key_prefix}/command"
+        state_key = f"{self._config.zenoh_key_prefix}/state"
 
         with zenoh.open(zenoh_config) as session, ExitStack() as resources:
             self._heartbeat_publisher = resources.enter_context(
@@ -177,7 +177,7 @@ class CliRuntime:
                 self._stop_before_exit()
             finally:
                 self._stop_heartbeat.set()
-                heartbeat.join(self._config.heartbeat_interval_sec + 1.0)
+                heartbeat.join(self._config.heartbeat_interval_seconds + 1.0)
                 if heartbeat.is_alive():
                     raise RuntimeError("CLI heartbeat worker did not stop")
 
@@ -211,7 +211,7 @@ class CliRuntime:
         try:
             while True:
                 self._heartbeat_publisher.put(heartbeat)
-                if self._stop_heartbeat.wait(self._config.heartbeat_interval_sec):
+                if self._stop_heartbeat.wait(self._config.heartbeat_interval_seconds):
                     return
         except Exception as error:
             self._heartbeat_error = error
@@ -237,7 +237,7 @@ class CliRuntime:
         acknowledged = self._states.wait_after(
             revision,
             lambda update: update.instruction == command.instruction,
-            timeout_sec=self._config.command_timeout_sec,
+            timeout_seconds=self._config.command_timeout_seconds,
         )
         if acknowledged is None:
             self._output("Instruction was not acknowledged before the timeout.")
@@ -259,7 +259,7 @@ class CliRuntime:
         acknowledged = self._states.wait_after(
             revision,
             lambda update: update.lifecycle in (Lifecycle.RUNNING, Lifecycle.ERROR),
-            timeout_sec=self._config.command_timeout_sec,
+            timeout_seconds=self._config.command_timeout_seconds,
         )
         if acknowledged is None:
             self._output("Start was not acknowledged before the timeout.")
@@ -274,7 +274,7 @@ class CliRuntime:
         stopped = self._states.wait_after(
             revision,
             lambda update: update.lifecycle in (Lifecycle.IDLE, Lifecycle.ERROR) and not update.inference.active,
-            timeout_sec=self._config.command_timeout_sec,
+            timeout_seconds=self._config.command_timeout_seconds,
         )
         if stopped is None:
             if report_timeout:
@@ -297,7 +297,7 @@ class CliRuntime:
     def _require_fresh_state(self) -> tuple[int, NodeState | None]:
         revision, state, fresh = self._states.snapshot()
         if not fresh or state is None:
-            self._output(f"NaVILA node is disconnected (no state for {self._config.node_state_stale_timeout_sec:g}s).")
+            self._output(f"NaVILA node is disconnected (no state for {self._config.node_state_timeout_seconds:g}s).")
             return revision, None
         return revision, state
 

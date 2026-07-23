@@ -55,8 +55,8 @@ $ cp zenoh/cli-zenoh-config.example.json5 zenoh/cli-zenoh-config.json5
 | 用途 | NaVILA の設定 | 外部側の設定 | キーの例 |
 | --- | --- | --- | --- |
 | カメラ JPEG 入力 | `camera.key` | camera の `base_key/device_key` | `camera/front` |
-| NaVILA の制御・状態 | 両方の `node_key` | CLI のみ | `navila/command`, `navila/state` |
-| Go2 の command・state | `go2.robot_key` | Go2 の `zenoh_key_prefix` | `unitree/go2/command`, `unitree/go2/state` |
+| NaVILA の制御・状態 | 両方の `zenoh_key_prefix` | CLI のみ | `navila/command`, `navila/state` |
+| Go2 の command・state | `go2.zenoh_key_prefix` | Go2 の `zenoh_key_prefix` | `unitree/go2/command`, `unitree/go2/state` |
 | ネットワーク転送 | NaVILA の両 Zenoh file | 外部の両 Zenoh file | peer/router/discovery を一致 |
 
 すべて具体的な Zenoh key である必要があり、wildcard は拒否されます。CLI の設定例は client として `127.0.0.1:7447` の NaVILA ノードへ接続します。CLI が別ホストならこのaddressを書き換えてください。同じホストで複数の peer process を動かす場合、全プロセスを同じ TCP port で listen させないでください。構成に応じて別 listener、multicast discovery、共通 router を使用します。
@@ -103,9 +103,9 @@ navila> start
 
 - `ins <text>` は idle または回復可能な error で instruction を変更します。引数なしの `ins` は空文字へ戻します。
 - `start` は NaVILA ノードへ stand を要求させ、`ready_stand` を待ってから推論を開始します。
-- `status` は最新の NaVILA state を表示します。デフォルトでは state が1秒届かなければ disconnected と表示します。
+- `status` は最新の NaVILA state を表示します。`node_state_timeout_seconds` の間 state が届かなければ disconnected と表示します。
 - running prompt で Enter を押すと stop を送り、down 確認を待って CLI prompt に戻ります。
-- `Ctrl+C` で CLI を終了します。idle が確認できない状態では先に `stop` を送り、`command_timeout_sec`（例では15秒）まで待ちます。停止を確認できなくてもその旨を表示し、期限後には終了します。
+- `Ctrl+C` で CLI を終了します。idle が確認できない状態では先に `stop` を送り、`command_timeout_seconds`（例では15秒）まで待ちます。停止を確認できなくてもその旨を表示し、期限後には終了します。
 
 instruction の初期値は空文字なので、最初は `start` できません。stop/start をまたいで保持されますが、disk には保存されません。
 
@@ -116,10 +116,10 @@ instruction の初期値は空文字なので、最初は `start` できませ�
 | 処理 | 設定例 | 動作 |
 | --- | ---: | --- |
 | カメラ callback | 外部カメラの周期（通常20–30 Hz） | `image/jpeg` を検証し、推論は行わない |
-| 履歴への追加 | 1 Hz | 前回の追加成功から sampling period が経過した callback だけを追加 |
-| 推論 | 1 Hz | `running` のときだけ、monotonic な絶対 schedule で実行 |
-| 速度 publish | 20 Hz | 現在 action を反復し、action の前後では zero を反復 |
-| state publish | 20 Hz | 状態変化がなくても定期 publish |
+| 履歴への追加（`camera.sample_frequency_hz`） | 1 Hz | 前回の追加成功から sampling period が経過した callback だけを追加 |
+| 推論（`inference.frequency_hz`） | 1 Hz | `running` のときだけ、monotonic な絶対 schedule で実行 |
+| 速度 publish（`go2_velocity_publish_frequency_hz`） | 20 Hz | 現在 action を反復し、action の前後では zero を反復 |
+| state publish（`node_state_publish_frequency_hz`） | 20 Hz | 状態変化がなくても定期 publish |
 
 したがって、別 sampling thread が時計どおりにフレームを抜き出す構成ではありません。カメラ入力が一定ならおおむね等間隔になりますが、厳密な規則は「最後に追加できた時刻から最小間隔を空ける」です。取り逃した interval の catch-up は行わないため、処理待ちの backlog は発生しません。
 
@@ -142,7 +142,7 @@ running 中は最新の parse 済み action が以前の action を置き換え�
 
 operator の Enter、CLI heartbeat 消失、model の `stop`、camera stale、Go2 state の stale/disconnect、parse/inference error、NaVILA の `SIGINT`/`SIGTERM` は、すべて同じ停止経路を通ります。ノードは直ちに `running` を抜け、現在 action を消去し、zero velocity を1回送ります。Go2 state が fresh な場合に限り、reliable な `down` を1回送り、Go2 の `down` と実行中だった推論の両方を待ちます。
 
-Go2 state が0.5秒届かなければ、推測による posture command の送信を止めて `error` へ移ります。`down_timeout_sec` までに down を確認できない場合も、非移動のまま着座未確認を報告します。回復後の `error` から start するには、down 確認を含む全 start 条件が再び有効である必要があります。ノード自身の shutdown も同じ停止経路を使い、安全完了を確認できなければ非ゼロで終了します。
+Go2 state が `go2.node_state_timeout_seconds` の間届かなければ、推測による posture command の送信を止めて `error` へ移ります。`go2.down_timeout_seconds` までに down を確認できない場合も、非移動のまま着座未確認を報告します。回復後の `error` から start するには、down 確認を含む全 start 条件が再び有効である必要があります。ノード自身の shutdown も同じ停止経路を使い、安全完了を確認できなければ非ゼロで終了します。
 
 起動後に初めて fresh な Go2 state が届いたとき、ロボットが down でなければ、CLI がなくても `down` を1回要求します。idle 中は Go2 velocity を publish しません。
 

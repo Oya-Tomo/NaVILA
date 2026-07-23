@@ -55,8 +55,8 @@ Settings must agree across the independent projects:
 | Purpose | NaVILA setting | External setting | Example key |
 | --- | --- | --- | --- |
 | Camera JPEG input | `camera.key` | camera `base_key/device_key` | `camera/front` |
-| NaVILA control/state | both `node_key` values | CLI only | `navila/command`, `navila/state` |
-| Go2 commands/state | `go2.robot_key` | Go2 `zenoh_key_prefix` | `unitree/go2/command`, `unitree/go2/state` |
+| NaVILA control/state | both `zenoh_key_prefix` values | CLI only | `navila/command`, `navila/state` |
+| Go2 commands/state | `go2.zenoh_key_prefix` | Go2 `zenoh_key_prefix` | `unitree/go2/command`, `unitree/go2/state` |
 | Network transport | both NaVILA Zenoh files | both external Zenoh files | matching peers/router/discovery |
 
 All keys must be concrete Zenoh keys; wildcards are rejected. The CLI example is a client connecting to the NaVILA node at `127.0.0.1:7447`; replace that address when the CLI is remote. If multiple peer processes run on one host, do not configure them all to listen on the same TCP port. Use distinct listeners, multicast discovery, or a shared router as appropriate for the deployment.
@@ -103,9 +103,9 @@ navila> start
 
 - `ins <text>` changes the instruction while idle or in a recoverable error. `ins` by itself clears it.
 - `start` asks the NaVILA node to stand, wait for `ready_stand`, and begin inference.
-- `status` prints the latest NaVILA state. State is reported disconnected after one second without an update by default.
+- `status` prints the latest NaVILA state. State is reported disconnected after `node_state_timeout_seconds` without an update.
 - Press Enter at the running prompt to stop, wait for down confirmation, and return to the CLI prompt.
-- Press `Ctrl+C` to exit. If the state is not confirmed idle, the CLI first sends `stop` and waits up to `command_timeout_sec` (15 seconds in the example). It reports an unconfirmed stop but exits after the deadline.
+- Press `Ctrl+C` to exit. If the state is not confirmed idle, the CLI first sends `stop` and waits up to `command_timeout_seconds` (15 seconds in the example). It reports an unconfirmed stop but exits after the deadline.
 
 The instruction starts as an empty string, so `start` initially remains unavailable. It is retained across stop/start cycles and is never persisted to disk.
 
@@ -116,10 +116,10 @@ Camera publishing, frame sampling, inference, and velocity publishing are separa
 | Operation | Example rate | Behavior |
 | --- | ---: | --- |
 | Camera callback | external camera rate, often 20–30 Hz | Validates incoming `image/jpeg`; does no inference |
-| History append | 1 Hz | The callback appends only after one full sampling period since the last successful append |
-| Inference | 1 Hz | Runs only in `running`, on an absolute monotonic schedule |
-| Velocity publish | 20 Hz | Repeats the current action, or zero before/after an action |
-| State publish | 20 Hz | Publishes periodically even when nothing changes |
+| History append (`camera.sample_frequency_hz`) | 1 Hz | The callback appends only after one full sampling period since the last successful append |
+| Inference (`inference.frequency_hz`) | 1 Hz | Runs only in `running`, on an absolute monotonic schedule |
+| Velocity publish (`go2_velocity_publish_frequency_hz`) | 20 Hz | Repeats the current action, or zero before/after an action |
+| State publish (`node_state_publish_frequency_hz`) | 20 Hz | Publishes periodically even when nothing changes |
 
 Thus, camera frames are not taken by a separate exactly-on-the-clock sampler. Under a regular camera stream they are approximately evenly spaced, but the rule is a minimum interval from the last successful append. Missed intervals are not replayed. This keeps callbacks cheap and prevents a catch-up backlog.
 
@@ -142,7 +142,7 @@ While running, the latest parsed action replaces the previous action. Supported 
 
 All stop causes use one path: operator Enter, CLI heartbeat loss, model `stop`, stale camera, stale/disconnected Go2 state, parse/inference failure, or NaVILA `SIGINT`/`SIGTERM`. The node immediately leaves `running`, clears the current action, sends one zero-velocity command, and—only when Go2 state is fresh—sends one reliable `down` request. It then waits for both Go2 `down` and any in-flight inference.
 
-If Go2 state is absent for 0.5 seconds, the node stops sending posture guesses and enters `error`. If down is not confirmed before `down_timeout_sec`, it remains non-moving and reports seating as unconfirmed. A recovered `error` can accept `start` only after every start condition is valid again, including confirmed `down`. Node shutdown uses the same stop path and exits nonzero if safe completion cannot be confirmed.
+If Go2 state is absent for `go2.node_state_timeout_seconds`, the node stops sending posture guesses and enters `error`. If down is not confirmed before `go2.down_timeout_seconds`, it remains non-moving and reports seating as unconfirmed. A recovered `error` can accept `start` only after every start condition is valid again, including confirmed `down`. Node shutdown uses the same stop path and exits nonzero if safe completion cannot be confirmed.
 
 At startup, the first fresh Go2 state triggers one `down` request if the robot is not already down, even when no CLI is connected. The node publishes no Go2 velocity while idle.
 

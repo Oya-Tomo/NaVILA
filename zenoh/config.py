@@ -93,7 +93,7 @@ class ModelConfig(FrozenModel):
 class CameraConfig(FrozenModel):
     key: StrictStr
     sample_frequency_hz: PositiveFloat
-    stale_timeout_sec: PositiveFloat
+    frame_freshness_seconds: PositiveFloat
 
     @validator("key")
     def validate_key(cls, value: str) -> str:
@@ -104,12 +104,12 @@ class CameraConfig(FrozenModel):
         return _validate_frequency(value, "camera.sample_frequency_hz")
 
     @root_validator
-    def validate_stale_window(cls, values: dict[str, object]) -> dict[str, object]:
+    def validate_freshness_window(cls, values: dict[str, object]) -> dict[str, object]:
         frequency = values.get("sample_frequency_hz")
-        timeout = values.get("stale_timeout_sec")
-        if isinstance(frequency, (int, float)) and isinstance(timeout, (int, float)):
-            if timeout <= 1.0 / frequency:
-                raise ValueError("camera.stale_timeout_sec must exceed one sampling period")
+        freshness = values.get("frame_freshness_seconds")
+        if isinstance(frequency, (int, float)) and isinstance(freshness, (int, float)):
+            if freshness <= 1.0 / frequency:
+                raise ValueError("camera.frame_freshness_seconds must exceed one sampling period")
         return values
 
 
@@ -126,76 +126,80 @@ class MotionConfig(FrozenModel):
     turn_velocity_rps: TurnVelocity
 
 
-class PublishConfig(FrozenModel):
-    velocity_frequency_hz: PositiveFloat
-    state_frequency_hz: PositiveFloat
-
-    @validator("velocity_frequency_hz", "state_frequency_hz")
-    def validate_frequency(cls, value: float, field: object) -> float:
-        return _validate_frequency(value, f"publish.{getattr(field, 'name', 'frequency')}")
-
-
 class ControlConfig(FrozenModel):
-    cli_heartbeat_timeout_sec: PositiveFloat
+    cli_heartbeat_timeout_seconds: PositiveFloat
 
 
 class Go2Config(FrozenModel):
-    robot_key: StrictStr
-    state_stale_timeout_sec: PositiveFloat
-    stand_timeout_sec: PositiveFloat
-    down_timeout_sec: PositiveFloat
+    zenoh_key_prefix: StrictStr
+    node_state_timeout_seconds: PositiveFloat
+    stand_timeout_seconds: PositiveFloat
+    down_timeout_seconds: PositiveFloat
 
-    @validator("robot_key")
+    @validator("zenoh_key_prefix")
     def validate_key(cls, value: str) -> str:
-        return validate_concrete_key(value, "go2.robot_key")
+        return validate_concrete_key(value, "go2.zenoh_key_prefix")
 
 
 class NodeConfig(FrozenModel):
-    node_key: StrictStr
+    zenoh_key_prefix: StrictStr
+    node_state_publish_frequency_hz: PositiveFloat
+    go2_velocity_publish_frequency_hz: PositiveFloat
     model: ModelConfig
     camera: CameraConfig
     inference: InferenceConfig
     motion: MotionConfig
-    publish: PublishConfig
     control: ControlConfig
     go2: Go2Config
 
-    @validator("node_key")
+    @validator("zenoh_key_prefix")
     def validate_key(cls, value: str) -> str:
-        return validate_concrete_key(value, "node_key")
+        return validate_concrete_key(value, "zenoh_key_prefix")
+
+    @validator("node_state_publish_frequency_hz", "go2_velocity_publish_frequency_hz")
+    def validate_publish_frequency(cls, value: float, field: object) -> float:
+        return _validate_frequency(value, getattr(field, "name", "publish frequency"))
 
     @root_validator
     def validate_derived_keys(cls, values: dict[str, object]) -> dict[str, object]:
-        node_key = values.get("node_key")
+        zenoh_key_prefix = values.get("zenoh_key_prefix")
         go2 = values.get("go2")
-        if isinstance(node_key, str):
-            validate_concrete_key(f"{node_key}/command", "derived command key")
-            validate_concrete_key(f"{node_key}/state", "derived state key")
+        if isinstance(zenoh_key_prefix, str):
+            validate_concrete_key(f"{zenoh_key_prefix}/command", "derived command key")
+            validate_concrete_key(f"{zenoh_key_prefix}/state", "derived state key")
         if isinstance(go2, Go2Config):
-            validate_concrete_key(f"{go2.robot_key}/command", "derived Go2 command key")
-            validate_concrete_key(f"{go2.robot_key}/state", "derived Go2 state key")
+            validate_concrete_key(f"{go2.zenoh_key_prefix}/command", "derived Go2 command key")
+            validate_concrete_key(f"{go2.zenoh_key_prefix}/state", "derived Go2 state key")
         return values
 
 
 class CliConfig(FrozenModel):
-    node_key: StrictStr
-    heartbeat_interval_sec: PositiveFloat
-    node_state_stale_timeout_sec: PositiveFloat
-    command_timeout_sec: PositiveFloat
+    zenoh_key_prefix: StrictStr
+    heartbeat_interval_seconds: PositiveFloat
+    node_state_timeout_seconds: PositiveFloat
+    command_timeout_seconds: PositiveFloat
 
-    @validator("node_key")
+    @validator("zenoh_key_prefix")
     def validate_key(cls, value: str) -> str:
-        return validate_concrete_key(value, "node_key")
+        return validate_concrete_key(value, "zenoh_key_prefix")
 
     @root_validator
     def validate_timeouts(cls, values: dict[str, object]) -> dict[str, object]:
-        interval = values.get("heartbeat_interval_sec")
-        stale = values.get("node_state_stale_timeout_sec")
-        command = values.get("command_timeout_sec")
-        if isinstance(interval, (int, float)) and isinstance(stale, (int, float)) and stale <= interval:
-            raise ValueError("node_state_stale_timeout_sec must exceed heartbeat_interval_sec")
-        if isinstance(stale, (int, float)) and isinstance(command, (int, float)) and command <= stale:
-            raise ValueError("command_timeout_sec must exceed node_state_stale_timeout_sec")
+        interval = values.get("heartbeat_interval_seconds")
+        state_timeout = values.get("node_state_timeout_seconds")
+        command_timeout = values.get("command_timeout_seconds")
+        if (
+            isinstance(interval, (int, float))
+            and isinstance(state_timeout, (int, float))
+            and state_timeout <= interval
+        ):
+            raise ValueError("node_state_timeout_seconds must exceed heartbeat_interval_seconds")
+        if (
+            isinstance(state_timeout, (int, float))
+            and isinstance(command_timeout, (int, float))
+            and command_timeout <= state_timeout
+        ):
+            raise ValueError("command_timeout_seconds must exceed node_state_timeout_seconds")
         return values
 
 

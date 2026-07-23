@@ -25,17 +25,19 @@ def test_example_configs_load() -> None:
     node = load_node_config(root / "node-config.example.json5")
     cli = load_cli_config(root / "cli-config.example.json5")
 
+    assert node.zenoh_key_prefix == "navila"
     assert node.camera.key == "camera/front"
-    assert node.publish.velocity_frequency_hz == 20.0
-    assert cli.heartbeat_interval_sec == 0.2
+    assert node.go2_velocity_publish_frequency_hz == 20.0
+    assert cli.zenoh_key_prefix == node.zenoh_key_prefix
+    assert cli.heartbeat_interval_seconds == 0.2
 
 
 @pytest.mark.parametrize(
     ("path", "value"),
     [
         (("camera", "sample_frequency_hz"), 1),
-        (("publish", "velocity_frequency_hz"), "20.0"),
-        (("go2", "state_stale_timeout_sec"), False),
+        (("control", "cli_heartbeat_timeout_seconds"), "1.0"),
+        (("go2", "node_state_timeout_seconds"), False),
     ],
 )
 def test_node_config_rejects_non_strict_types(
@@ -46,6 +48,13 @@ def test_node_config_rejects_non_strict_types(
     document = node_config.dict()
     document[path[0]][path[1]] = value
 
+    with pytest.raises(ValidationError):
+        NodeConfig.parse_obj(document)
+
+
+def test_node_config_rejects_non_strict_publish_frequency(node_config: NodeConfig) -> None:
+    document = node_config.dict()
+    document["node_state_publish_frequency_hz"] = "20.0"
     with pytest.raises(ValidationError):
         NodeConfig.parse_obj(document)
 
@@ -61,6 +70,11 @@ def test_config_rejects_unknown_fields_and_wildcard_keys(node_config: NodeConfig
     with pytest.raises(ValidationError):
         NodeConfig.parse_obj(document)
 
+    document = node_config.dict()
+    document["node_key"] = document.pop("zenoh_key_prefix")
+    with pytest.raises(ValidationError):
+        NodeConfig.parse_obj(document)
+
 
 def test_config_rejects_unsafe_ranges_and_timeout_relationships(node_config: NodeConfig) -> None:
     document = node_config.dict()
@@ -69,24 +83,27 @@ def test_config_rejects_unsafe_ranges_and_timeout_relationships(node_config: Nod
         NodeConfig.parse_obj(document)
 
     document = node_config.dict()
-    document["camera"]["stale_timeout_sec"] = 1.0
+    document["camera"]["frame_freshness_seconds"] = 1.0
     with pytest.raises(ValidationError):
         NodeConfig.parse_obj(document)
 
     with pytest.raises(ValidationError):
         CliConfig.parse_obj(
             {
-                "node_key": "navila",
-                "heartbeat_interval_sec": 1.0,
-                "node_state_stale_timeout_sec": 1.0,
-                "command_timeout_sec": 15.0,
+                "zenoh_key_prefix": "navila",
+                "heartbeat_interval_seconds": 1.0,
+                "node_state_timeout_seconds": 1.0,
+                "command_timeout_seconds": 15.0,
             }
         )
 
 
 def test_json5_loader_rejects_duplicate_fields(tmp_path: Path) -> None:
     config_path = tmp_path / "duplicate.json5"
-    config_path.write_text("{node_key: 'a', node_key: 'b'}", encoding="utf-8")
+    config_path.write_text(
+        "{zenoh_key_prefix: 'a', zenoh_key_prefix: 'b'}",
+        encoding="utf-8",
+    )
 
     with pytest.raises(ValueError, match="duplicate"):
         load_node_config(config_path)

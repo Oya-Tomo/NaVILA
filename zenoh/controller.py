@@ -382,7 +382,7 @@ class Controller:
         self._stop_error = None
         self._current_action = None
         self._action_deadline = None
-        self._stand_deadline = now + self._config.go2.stand_timeout_sec
+        self._stand_deadline = now + self._config.go2.stand_timeout_seconds
         self._posture_pending = "stand"
         return True
 
@@ -405,7 +405,7 @@ class Controller:
         self._current_action = None
         self._action_deadline = None
         self._stand_deadline = None
-        self._down_deadline = now + self._config.go2.down_timeout_sec
+        self._down_deadline = now + self._config.go2.down_timeout_seconds
         self._zero_pending = True
         self._posture_pending = "down" if request_down else None
 
@@ -446,16 +446,19 @@ class Controller:
     def _cli_connected(self, now: float) -> bool:
         return (
             self._last_heartbeat_at is not None
-            and now - self._last_heartbeat_at <= self._config.control.cli_heartbeat_timeout_sec
+            and now - self._last_heartbeat_at <= self._config.control.cli_heartbeat_timeout_seconds
         )
 
     def _camera_stale(self, now: float) -> bool:
-        return self._last_frame_at is None or now - self._last_frame_at > self._config.camera.stale_timeout_sec
+        return (
+            self._last_frame_at is None
+            or now - self._last_frame_at > self._config.camera.frame_freshness_seconds
+        )
 
     def _go2_fresh(self, now: float) -> bool:
         return (
             self._last_go2_state_at is not None
-            and now - self._last_go2_state_at <= self._config.go2.state_stale_timeout_sec
+            and now - self._last_go2_state_at <= self._config.go2.node_state_timeout_seconds
         )
 
     def _go2_available(self, now: float) -> bool:
