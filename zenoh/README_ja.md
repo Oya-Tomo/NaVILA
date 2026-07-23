@@ -56,10 +56,12 @@ $ cp zenoh/cli-zenoh-config.example.json5 zenoh/cli-zenoh-config.json5
 | --- | --- | --- | --- |
 | カメラ JPEG 入力 | `camera.key` | camera の `base_key/device_key` | `camera/front` |
 | NaVILA の制御・状態 | 両方の `node_key` | CLI のみ | `navila/command`, `navila/state` |
-| Go2 の command・state | `go2.robot_key` | Go2 の `robot_key` | `unitree/go2/command`, `unitree/go2/state` |
+| Go2 の command・state | `go2.robot_key` | Go2 の `zenoh_key_prefix` | `unitree/go2/command`, `unitree/go2/state` |
 | ネットワーク転送 | NaVILA の両 Zenoh file | 外部の両 Zenoh file | peer/router/discovery を一致 |
 
 すべて具体的な Zenoh key である必要があり、wildcard は拒否されます。CLI の設定例は client として `127.0.0.1:7447` の NaVILA ノードへ接続します。CLI が別ホストならこのaddressを書き換えてください。同じホストで複数の peer process を動かす場合、全プロセスを同じ TCP port で listen させないでください。構成に応じて別 listener、multicast discovery、共通 router を使用します。
+
+NaVILA ノードは現在の Go2 `develop` State の `robot_connected`、`robot_state.state`、`accepting_commands` を参照します。旧フィールドの `connected` と `robot` を使う State payload は拒否します。
 
 プログラムが受け取る引数は設定ファイルのパスだけです。model、key、rate、motion 値を個別の CLI 引数で上書きすることはできません。
 

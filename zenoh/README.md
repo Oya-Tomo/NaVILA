@@ -56,10 +56,12 @@ Settings must agree across the independent projects:
 | --- | --- | --- | --- |
 | Camera JPEG input | `camera.key` | camera `base_key/device_key` | `camera/front` |
 | NaVILA control/state | both `node_key` values | CLI only | `navila/command`, `navila/state` |
-| Go2 commands/state | `go2.robot_key` | Go2 `robot_key` | `unitree/go2/command`, `unitree/go2/state` |
+| Go2 commands/state | `go2.robot_key` | Go2 `zenoh_key_prefix` | `unitree/go2/command`, `unitree/go2/state` |
 | Network transport | both NaVILA Zenoh files | both external Zenoh files | matching peers/router/discovery |
 
 All keys must be concrete Zenoh keys; wildcards are rejected. The CLI example is a client connecting to the NaVILA node at `127.0.0.1:7447`; replace that address when the CLI is remote. If multiple peer processes run on one host, do not configure them all to listen on the same TCP port. Use distinct listeners, multicast discovery, or a shared router as appropriate for the deployment.
+
+The NaVILA node consumes the current Go2 `develop` State fields `robot_connected`, `robot_state.state`, and `accepting_commands`. Legacy State payloads using `connected` and `robot` are rejected.
 
 The programs intentionally expose only configuration-file arguments. Model, keys, rates, and motion values cannot be overridden individually on the command line.
 

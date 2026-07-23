@@ -28,8 +28,8 @@ class FakeClock:
 
 def go2(state: str, *, connected: bool = True, accepting: bool = True) -> Go2NodeState:
     return Go2NodeState(
-        connected=connected,
-        robot=Go2RobotState(state=state),
+        robot_connected=connected,
+        robot_state=Go2RobotState(state=state),
         accepting_commands=accepting,
     )
 

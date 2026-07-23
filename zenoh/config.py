@@ -295,8 +295,8 @@ class Go2RobotState(ExternalModel):
 
 
 class Go2NodeState(ExternalModel):
-    connected: StrictBool
-    robot: Go2RobotState
+    robot_connected: StrictBool
+    robot_state: Go2RobotState
     accepting_commands: StrictBool
 
 

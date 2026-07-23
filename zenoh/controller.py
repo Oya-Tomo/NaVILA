@@ -414,7 +414,7 @@ class Controller:
             self._posture_pending = None
             self._finish_stop(error=self._stop_error or "Go2 state became stale before down was confirmed")
             return
-        if self._go2_state is not None and self._go2_state.robot.state == "down":
+        if self._go2_state is not None and self._go2_state.robot_state.state == "down":
             self._startup_seat_pending = False
             if not self._inference_active:
                 self._finish_stop(error=self._stop_error)
@@ -433,7 +433,7 @@ class Controller:
         if not self._startup_seat_pending or not self._go2_available(now):
             return
         assert self._go2_state is not None
-        if self._go2_state.robot.state == "down":
+        if self._go2_state.robot_state.state == "down":
             self._startup_seat_pending = False
             return
         self._begin_stop(now, error=None, request_down=True, allow_idle=True)
@@ -459,14 +459,14 @@ class Controller:
         )
 
     def _go2_available(self, now: float) -> bool:
-        return self._go2_fresh(now) and self._go2_state is not None and self._go2_state.connected
+        return self._go2_fresh(now) and self._go2_state is not None and self._go2_state.robot_connected
 
     def _go2_ready_to_move(self) -> bool:
         return (
             self._go2_state is not None
-            and self._go2_state.connected
+            and self._go2_state.robot_connected
             and self._go2_state.accepting_commands
-            and self._go2_state.robot.state == "ready_stand"
+            and self._go2_state.robot_state.state == "ready_stand"
         )
 
     def _readiness_reason(self, now: float) -> str | None:
@@ -485,11 +485,11 @@ class Controller:
         if not self._go2_fresh(now):
             return "waiting for fresh Go2 state"
         assert self._go2_state is not None
-        if not self._go2_state.connected:
+        if not self._go2_state.robot_connected:
             return "Go2 node reports disconnected"
         if not self._go2_state.accepting_commands:
             return "Go2 node is not accepting commands"
-        if self._go2_state.robot.state != "down":
+        if self._go2_state.robot_state.state != "down":
             return "waiting for Go2 to be down"
         return None
 

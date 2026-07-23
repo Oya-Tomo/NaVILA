@@ -11,6 +11,7 @@ from config import (
     NodeConfig,
     VelocityCommand,
     decode_control_command,
+    decode_go2_state,
     decode_node_state,
     load_cli_config,
     load_node_config,
@@ -127,3 +128,40 @@ def test_state_and_velocity_wire_models_reject_coercion_and_unknown_fields() -> 
 
     with pytest.raises(ValidationError):
         decode_node_state(payload[:-2] + b',"unexpected":true}')
+
+
+def test_go2_state_matches_develop_public_contract() -> None:
+    payload = b"""{
+        "lifecycle":"running",
+        "robot_connected":true,
+        "robot_state":{
+            "state":"ready_stand",
+            "reason":null,
+            "motion":"quiescent",
+            "state_machine_code":100,
+            "state_machine_name":"agile",
+            "mode":1,
+            "mode_name":"balance_stand",
+            "velocity":[0.0,0.0,0.0],
+            "yaw_speed":0.0,
+            "stamp_sec":1,
+            "stamp_nanosec":2
+        },
+        "accepting_commands":true,
+        "requested_posture":null,
+        "requested_velocity":null,
+        "last_posture_action":null,
+        "last_sdk_diagnostic":null,
+        "last_node_error":null
+    }"""
+
+    state = decode_go2_state(payload)
+
+    assert state.robot_connected
+    assert state.robot_state.state == "ready_stand"
+    assert state.accepting_commands
+
+    with pytest.raises(ValidationError):
+        decode_go2_state(
+            b'{"connected":true,"robot":{"state":"ready_stand"},"accepting_commands":true}'
+        )

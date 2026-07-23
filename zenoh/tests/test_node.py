@@ -91,8 +91,8 @@ def prepare_running_runtime(runtime: NodeRuntime) -> None:
     runtime.controller.append_camera_frame(Image.new("RGB", (8, 8), "white"))
     runtime.controller.update_go2_state(
         Go2NodeState(
-            connected=True,
-            robot=Go2RobotState(state="down"),
+            robot_connected=True,
+            robot_state=Go2RobotState(state="down"),
             accepting_commands=True,
         )
     )
@@ -103,8 +103,8 @@ def prepare_running_runtime(runtime: NodeRuntime) -> None:
     runtime.controller.take_effects()
     runtime.controller.update_go2_state(
         Go2NodeState(
-            connected=True,
-            robot=Go2RobotState(state="ready_stand"),
+            robot_connected=True,
+            robot_state=Go2RobotState(state="ready_stand"),
             accepting_commands=True,
         )
     )
@@ -210,8 +210,8 @@ def test_runtime_declares_separate_qos_and_uses_safe_shutdown(node_config: NodeC
     runtime = NodeRuntime(node_config, FakeEngine())
     runtime.controller.update_go2_state(
         Go2NodeState(
-            connected=True,
-            robot=Go2RobotState(state="down"),
+            robot_connected=True,
+            robot_state=Go2RobotState(state="down"),
             accepting_commands=True,
         )
     )
